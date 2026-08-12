@@ -1,0 +1,7 @@
+.build/
+.swiftpm/
+DerivedData/
+.DS_Store
+*.mov
+*.png
+!docs/**/*.png
