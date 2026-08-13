@@ -35,6 +35,8 @@ final class ToolCatalogTests: XCTestCase {
             "device_info", "device_apps", "device_uninstall",
             // Phase 3
             "find_image", "tap_image",
+            // Phase 4
+            "notifications", "notification_click",
         ] {
             XCTAssertTrue(names.contains(required), "missing tool \(required)")
         }

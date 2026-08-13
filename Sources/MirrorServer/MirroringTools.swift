@@ -513,6 +513,26 @@ enum MirroringTools {
             },
 
             RegisteredTool(
+                name: "notifications",
+                description: "List the notification banners currently on the Mac's screen. While mirroring is active, the iPhone's notifications are delivered HERE — this is how a flow observes \"the push/message arrived\". Banners auto-dismiss after a few seconds, so poll right after triggering one.",
+                schema: ["type": "object", "properties": [:]]
+            ) { _ in
+                textResult(NotificationBridge.describe(NotificationBridge.banners()))
+            },
+
+            RegisteredTool(
+                name: "notification_click",
+                description: "Click a notification banner by index (from the notifications tool). Clicking a mirrored iPhone notification opens its app in the mirroring window.",
+                schema: [
+                    "type": "object",
+                    "properties": ["index": ["type": "number", "description": "Banner index (default 0 = topmost)"]],
+                ]
+            ) { args in
+                let banner = try NotificationBridge.click(index: try args.int("index", default: 0))
+                return textResult("Clicked banner: \(banner.lines.joined(separator: " — ")). Take a screenshot to see what opened.")
+            },
+
+            RegisteredTool(
                 name: "batch",
                 description: "Run several input steps in ONE call — far faster than separate tool calls for scripted flows. Steps run in order; the first failure stops the batch and reports the step index. Step tools: tap, double_tap, long_press, swipe, drag, type_text, paste_text, press_key, tap_text, wait_for_text, home, app_switcher, spotlight, launch_app, open_url, sleep_ms. Each step: {\"tool\": name, \"args\": {…}} with the same args as the standalone tool.",
                 schema: [
