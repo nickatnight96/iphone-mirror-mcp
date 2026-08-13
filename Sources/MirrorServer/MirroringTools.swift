@@ -514,10 +514,23 @@ enum MirroringTools {
 
             RegisteredTool(
                 name: "notifications",
-                description: "List the notification banners currently on the Mac's screen. While mirroring is active, the iPhone's notifications are delivered HERE — this is how a flow observes \"the push/message arrived\". Banners auto-dismiss after a few seconds, so poll right after triggering one.",
-                schema: ["type": "object", "properties": [:]]
-            ) { _ in
-                textResult(NotificationBridge.describe(NotificationBridge.banners()))
+                description: "List the notification banners on the Mac's screen. While mirroring is active, the iPhone's notifications are delivered HERE — this is how a flow observes \"the push/message arrived\". Banners exist only while visibly on screen (~5s), so pass wait_seconds to poll until one appears — trigger the notification, then call this with a wait.",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "wait_seconds": ["type": "number", "description": "Poll up to this long for a banner to appear (default 0 = single check, max 60)"],
+                    ],
+                ]
+            ) { args in
+                let waitSeconds = min(max(try args.optionalDouble("wait_seconds") ?? 0, 0), 60)
+                let deadline = Date().addingTimeInterval(waitSeconds)
+                while true {
+                    let banners = try NotificationBridge.bannersDetailed()
+                    if !banners.isEmpty || Date() >= deadline {
+                        return textResult(NotificationBridge.describe(banners))
+                    }
+                    try await Task.sleep(nanoseconds: 300_000_000)
+                }
             },
 
             RegisteredTool(

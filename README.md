@@ -75,7 +75,7 @@ claude mcp add --scope user iphone-mirror -- "$PWD/.build/release/iphone-mirror-
 | `drag` | Sustained press-drag (icons, sliders, drag & drop) |
 | `type_text` | Keystroke typing (ASCII; skips & reports unmappable chars) |
 | `paste_text` | **Full-fidelity text via the bridged clipboard** (emoji/CJK/long strings); restores the user's clipboard |
-| `read_clipboard` | ⌘C on the phone → read the exact selected text (no OCR) |
+| `read_clipboard` | ⌘C on the phone → read the exact selected text (no OCR). App-dependent: some fields (e.g. Spotlight) don't bridge the copy back |
 | `press_key` | Single key / shortcut, e.g. `return`, `cmd+a` |
 | `home` / `app_switcher` / `spotlight` | System navigation (View menu, ⌘1/⌘2/⌘3 fallback) |
 | `launch_app` / `open_url` | Spotlight app launch; Safari URL navigation |

@@ -25,12 +25,22 @@ public enum NotificationBridge {
             .first { !$0.isTerminated }
     }
 
-    /// The banners currently on screen, top-to-bottom.
-    public static func banners() -> [Banner] {
-        guard let app = process() else { return [] }
+    /// The banners currently on screen, top-to-bottom. Throws with the AX
+    /// error code when the query itself fails — several AX behaviors differ
+    /// between CLI processes and the running server, so failures must be
+    /// visible, not an indistinguishable "no banners".
+    public static func bannersDetailed() throws -> [Banner] {
+        guard let app = process() else {
+            throw MirrorError("The NotificationCenter process is not running.")
+        }
         let appRef = AXUIElementCreateApplication(app.processIdentifier)
         var windowsRef: CFTypeRef?
-        AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute as CFString, &windowsRef)
+        let axError = AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute as CFString, &windowsRef)
+        guard axError == .success else {
+            throw MirrorError(
+                "The AX window query to Notification Center failed (AXError \(axError.rawValue)).",
+                remediation: "Check the Accessibility permission for the app hosting this server; AXError -25204 means the query cannot complete from this process context.")
+        }
         guard let windows = windowsRef as? [AXUIElement] else { return [] }
         var results: [Banner] = []
         for window in windows {
@@ -43,6 +53,11 @@ public enum NotificationBridge {
             results.append(Banner(lines: lines, frame: frame))
         }
         return results.sorted { $0.frame.origin.y < $1.frame.origin.y }
+    }
+
+    /// Error-swallowing variant for callers that treat failures as "none".
+    public static func banners() -> [Banner] {
+        (try? bannersDetailed()) ?? []
     }
 
     private static let maxDepth = 10
