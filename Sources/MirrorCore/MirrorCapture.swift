@@ -95,6 +95,25 @@ public enum MirrorCapture {
         return CaptureResult(image: image, geometry: geometry)
     }
 
+    /// Starts a DETACHED `screencapture -v` recording of the window region —
+    /// the caller keeps driving the phone while it runs and stops it with
+    /// SIGINT (screencapture finalizes the .mov on interrupt).
+    public static func startRecordingProcess(
+        windowInfo: MirrorWindowInfo, outputPath: String?
+    ) throws -> (process: Process, path: String) {
+        let path = outputPath ?? NSTemporaryDirectory()
+            + "iphone-mirror-recording-\(Int(Date().timeIntervalSince1970)).mov"
+        let b = windowInfo.bounds
+        let region = "\(Int(b.origin.x)),\(Int(b.origin.y)),\(Int(b.width)),\(Int(b.height))"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = ["-v", "-R", region, "-x", path]
+        do { try process.run() } catch {
+            throw MirrorError("Could not start screencapture: \(error)")
+        }
+        return (process, path)
+    }
+
     /// Records the window region to a .mov via `screencapture -v` for a fixed
     /// duration. Returns the output path.
     public static func record(

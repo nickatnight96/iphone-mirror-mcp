@@ -65,6 +65,15 @@ public struct ToolArgs: Sendable {
         return bool
     }
 
+    public func objectArray(_ key: String) throws -> [[String: Value]] {
+        guard let value = raw[key], !value.isNull else { return [] }
+        guard let array = value.arrayValue else { throw wrongType(key, "array of objects") }
+        return try array.map {
+            guard let object = $0.objectValue else { throw wrongType(key, "array of objects") }
+            return object
+        }
+    }
+
     public func stringArray(_ key: String) throws -> [String] {
         guard let value = raw[key], !value.isNull else { return [] }
         guard let array = value.arrayValue else { throw wrongType(key, "array of strings") }

@@ -397,6 +397,194 @@ enum MirroringTools {
             ) { _ in
                 textResult(await session.doctor().describe())
             },
+
+            RegisteredTool(
+                name: "record_start",
+                description: "Start a DETACHED screen recording of the mirrored iPhone — tap/swipe/type tools keep working while it runs. Stop with record_stop to get the .mov. The mirroring window must stay visible on screen for the whole recording (input tools keep it frontmost automatically).",
+                schema: [
+                    "type": "object",
+                    "properties": ["output_path": ["type": "string", "description": "Optional .mov output path"]],
+                ]
+            ) { args in
+                let path = try await session.startRecording(outputPath: try args.optionalString("output_path"))
+                return textResult("Recording started → \(path). Drive the phone, then call record_stop.")
+            },
+
+            RegisteredTool(
+                name: "record_stop",
+                description: "Stop the detached recording started by record_start and return the finalized .mov path.",
+                schema: ["type": "object", "properties": [:]]
+            ) { _ in
+                let path = try await session.stopRecording()
+                return textResult("Recording saved to \(path)")
+            },
+
+            RegisteredTool(
+                name: "wait_for_screen_change",
+                description: "Poll until the screen visually CHANGES (mode \"changed\") or STOPS changing (mode \"stable\", e.g. an animation finished) using a perceptual frame diff — complements wait_for_text for imagery OCR cannot read. Returns the elapsed time.",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "mode": ["type": "string", "description": "\"changed\" (default) or \"stable\""],
+                        "timeout_seconds": ["type": "number", "description": "Default 15, max 120"],
+                        "threshold": ["type": "number", "description": "Normalized difference 0-1 that counts as a change (default 0.02)"],
+                    ],
+                ]
+            ) { args in
+                let elapsed = try await session.waitForScreenChange(
+                    mode: try args.optionalString("mode") ?? "changed",
+                    timeoutSeconds: try args.optionalDouble("timeout_seconds") ?? 15,
+                    threshold: try args.optionalDouble("threshold") ?? 0.02)
+                return textResult("Screen \(try args.optionalString("mode") ?? "changed") after \(String(format: "%.1f", elapsed))s.")
+            },
+
+            RegisteredTool(
+                name: "annotated_screenshot",
+                description: "Screenshot with every OCR text element boxed and numbered, plus a legend of index → text/center. One call to see exactly where the tappable coordinates are. \(coordinateNote)",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "max_width": ["type": "number", "description": "Optional: cap the returned image width in pixels (coordinates stay full-resolution)"],
+                    ],
+                ]
+            ) { args in
+                let (shot, elements) = try await session.annotatedScreenshot(
+                    maxWidth: try args.optionalInt("max_width"))
+                var caption = "iPhone screen \(shot.pixelWidth)x\(shot.pixelHeight) px with \(elements.count) OCR elements boxed. \(coordinateNote)"
+                if shot.coordinateScale != 1.0 {
+                    caption += " Image downscaled ×\(String(format: "%.2f", shot.coordinateScale))."
+                }
+                if !elements.isEmpty {
+                    caption += "\nLegend:\n" + elements.enumerated().map { index, element in
+                        "\(index): \"\(element.text)\" center=(\(Int(element.center.x)), \(Int(element.center.y)))"
+                    }.joined(separator: "\n")
+                }
+                return imageResult(pngData: shot.pngData, caption: caption)
+            },
+
+            RegisteredTool(
+                name: "batch",
+                description: "Run several input steps in ONE call — far faster than separate tool calls for scripted flows. Steps run in order; the first failure stops the batch and reports the step index. Step tools: tap, double_tap, long_press, swipe, drag, type_text, paste_text, press_key, tap_text, wait_for_text, home, app_switcher, spotlight, launch_app, open_url, sleep_ms. Each step: {\"tool\": name, \"args\": {…}} with the same args as the standalone tool.",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "steps": [
+                            "type": "array",
+                            "items": [
+                                "type": "object",
+                                "properties": [
+                                    "tool": ["type": "string"],
+                                    "args": ["type": "object"],
+                                ],
+                                "required": ["tool"],
+                            ],
+                        ],
+                    ],
+                    "required": ["steps"],
+                ]
+            ) { args in
+                let steps = try args.objectArray("steps")
+                guard !steps.isEmpty else { throw MirrorError("The batch has no steps.") }
+                guard steps.count <= 30 else { throw MirrorError("Too many steps (\(steps.count)); max 30 per batch.") }
+                var results: [String] = []
+                for (index, rawStep) in steps.enumerated() {
+                    let step = ToolArgs(rawStep)
+                    let name = try step.string("tool")
+                    let stepArgs = ToolArgs(rawStep["args"]?.objectValue ?? [:])
+                    do {
+                        results.append("\(index + 1). \(name): \(try await runBatchStep(name, stepArgs, session: session))")
+                    } catch {
+                        let message = (error as? MirrorError)?.description ?? "\(error)"
+                        results.append("\(index + 1). \(name): FAILED — \(message)")
+                        results.append("Batch stopped at step \(index + 1) of \(steps.count).")
+                        return CallTool.Result(
+                            content: [.text(text: results.joined(separator: "\n"), annotations: nil, _meta: nil)],
+                            isError: true)
+                    }
+                }
+                return textResult(results.joined(separator: "\n"))
+            },
         ]
+    }
+
+    /// Dispatch for batch steps — the same session paths as the standalone
+    /// tools, without re-entering the tool serializer.
+    private static func runBatchStep(
+        _ name: String, _ args: ToolArgs, session: MirrorSession
+    ) async throws -> String {
+        switch name {
+        case "tap":
+            try await session.tap(
+                x: try args.double("x"), y: try args.double("y"),
+                expect: try args.optionalString("expect"),
+                expectTimeout: try args.optionalDouble("expect_timeout_seconds") ?? 10)
+            return "tapped (\(Int(try args.double("x"))), \(Int(try args.double("y"))))"
+        case "double_tap":
+            try await session.doubleTap(x: try args.double("x"), y: try args.double("y"))
+            return "double-tapped"
+        case "long_press":
+            try await session.longPress(
+                x: try args.double("x"), y: try args.double("y"),
+                durationMs: try args.int("duration_ms", default: 600))
+            return "long-pressed"
+        case "swipe":
+            try await session.swipe(
+                fromX: try args.double("from_x"), fromY: try args.double("from_y"),
+                toX: try args.double("to_x"), toY: try args.double("to_y"),
+                durationMs: try args.int("duration_ms", default: 300))
+            return "swiped"
+        case "drag":
+            try await session.drag(
+                fromX: try args.double("from_x"), fromY: try args.double("from_y"),
+                toX: try args.double("to_x"), toY: try args.double("to_y"),
+                durationMs: try args.int("duration_ms", default: 1000))
+            return "dragged"
+        case "type_text":
+            let skipped = try await session.typeText(
+                try args.string("text"), submit: try args.bool("submit", default: false))
+            return skipped.isEmpty ? "typed" : "typed (skipped: \(skipped))"
+        case "paste_text":
+            try await session.pasteText(
+                try args.string("text"), submit: try args.bool("submit", default: false))
+            return "pasted"
+        case "press_key":
+            try await session.pressKey(spec: try args.string("key"))
+            return "pressed \(try args.string("key"))"
+        case "tap_text":
+            let element = try await session.tapText(
+                try args.string("query"),
+                index: try args.int("index", default: 0),
+                exact: try args.bool("exact", default: false),
+                expect: try args.optionalString("expect"),
+                expectTimeout: try args.optionalDouble("expect_timeout_seconds") ?? 10)
+            return "tapped \"\(element.text)\""
+        case "wait_for_text":
+            let elapsed = try await session.waitForText(
+                try args.string("text"),
+                timeoutSeconds: try args.optionalDouble("timeout_seconds") ?? 15,
+                exact: try args.bool("exact", default: false))
+            return "text appeared after \(String(format: "%.1f", elapsed))s"
+        case "home":
+            try await session.home()
+            return "home screen"
+        case "app_switcher":
+            try await session.appSwitcher()
+            return "app switcher"
+        case "spotlight":
+            try await session.spotlight()
+            return "spotlight"
+        case "launch_app":
+            try await session.launchApp(named: try args.string("name"))
+            return "launched \(try args.string("name"))"
+        case "open_url":
+            try await session.openURL(try args.string("url"))
+            return "opened URL"
+        case "sleep_ms":
+            let ms = min(max(try args.int("ms"), 1), 30_000)
+            try await Task.sleep(nanoseconds: UInt64(ms) * 1_000_000)
+            return "slept \(ms)ms"
+        default:
+            throw MirrorError("Unknown batch step tool \"\(name)\". See the batch tool description for the allowed set.")
+        }
     }
 }

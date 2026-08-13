@@ -229,6 +229,114 @@ public actor MirrorSession {
         return try await MirrorCapture.record(windowInfo: info, seconds: seconds, outputPath: outputPath)
     }
 
+    /// The detached recording, when one is running.
+    private var recording: (process: Process, path: String)?
+
+    /// Starts a detached recording — input tools keep working while it runs.
+    public func startRecording(outputPath: String?) async throws -> String {
+        if let current = recording {
+            throw MirrorError("A recording is already running (\(current.path)). Call record_stop first.")
+        }
+        if let error = ensureReady(forInput: false) { throw error }
+        guard let info = bridge.windowInfo() else { throw MirrorError.windowNotFound() }
+        bridge.activate()  // region capture records whatever is visually there
+        let started = try MirrorCapture.startRecordingProcess(windowInfo: info, outputPath: outputPath)
+        recording = started
+        return started.path
+    }
+
+    /// Stops the detached recording and returns the finalized .mov path.
+    public func stopRecording() async throws -> String {
+        guard let current = recording else {
+            throw MirrorError("No recording is running. Call record_start first.")
+        }
+        recording = nil
+        current.process.interrupt()  // screencapture finalizes on SIGINT
+        for _ in 0..<20 where current.process.isRunning {
+            try await Task.sleep(nanoseconds: 500_000_000)
+        }
+        if current.process.isRunning { current.process.terminate() }
+        guard FileManager.default.fileExists(atPath: current.path) else {
+            throw MirrorError("Recording stopped but produced no file at \(current.path).",
+                              remediation: "The window may have moved or the recording was interrupted; retry with record_start.")
+        }
+        return current.path
+    }
+
+    /// Polls until the screen visually changes (mode "changed") or stops
+    /// changing (mode "stable"), using a perceptual mean-difference of
+    /// downsampled frames. Complements wait_for_text for imagery and
+    /// animations OCR cannot see. Returns elapsed seconds.
+    public func waitForScreenChange(mode: String, timeoutSeconds: Double, threshold: Double) async throws -> Double {
+        if let error = ensureReady(forInput: false) { throw error }
+        let start = Date()
+        let effectiveTimeout = min(max(timeoutSeconds, 1), 120)
+        let deadline = start.addingTimeInterval(effectiveTimeout)
+        let thresholdValue = threshold > 0 ? threshold : 0.02
+        var reference = try await captureCurrentWindow().image
+
+        switch mode {
+        case "changed":
+            while true {
+                try await Task.sleep(nanoseconds: 400_000_000)
+                let current = try await captureCurrentWindow().image
+                if ImageUtil.meanAbsDifference(reference, current) >= thresholdValue {
+                    return Date().timeIntervalSince(start)
+                }
+                if Date() >= deadline {
+                    throw MirrorError("The screen did not change within \(Int(effectiveTimeout))s (difference threshold \(thresholdValue)).")
+                }
+            }
+        case "stable":
+            var stableRuns = 0
+            while true {
+                try await Task.sleep(nanoseconds: 400_000_000)
+                let current = try await captureCurrentWindow().image
+                if ImageUtil.meanAbsDifference(reference, current) < thresholdValue {
+                    stableRuns += 1
+                    if stableRuns >= 2 { return Date().timeIntervalSince(start) }
+                } else {
+                    stableRuns = 0
+                }
+                reference = current
+                if Date() >= deadline {
+                    throw MirrorError("The screen kept changing for \(Int(effectiveTimeout))s — it never went stable (threshold \(thresholdValue)).")
+                }
+            }
+        default:
+            throw MirrorError("Unknown mode \"\(mode)\". Use \"changed\" or \"stable\".")
+        }
+    }
+
+    /// Screenshot with every OCR element boxed and numbered — coordinate
+    /// debugging in one call. Returns the annotated image plus the elements
+    /// (index order matches the drawn labels).
+    public func annotatedScreenshot(maxWidth: Int?) async throws -> (shot: Screenshot, elements: [OCRElement]) {
+        if let error = ensureReady(forInput: false) { throw error }
+        let capture = try await captureCurrentWindow()
+        lastImageSize = capture.geometry.imagePixelSize
+        let elements = try MirrorOCR.recognizeText(in: capture.image, fast: false)
+        let annotated = try ImageUtil.annotate(
+            capture.image,
+            boxes: elements.enumerated().map { (index, element) in (element.box, String(index)) })
+
+        var image = annotated
+        var scale = 1.0
+        if let maxWidth, maxWidth > 0, image.width > maxWidth {
+            let widthScale = Double(maxWidth) / Double(image.width)
+            let longestSideCap = Int((Double(max(image.width, image.height)) * widthScale).rounded())
+            let scaled = ImageUtil.downscaled(image, maxDimension: longestSideCap)
+            scale = Double(image.width) / Double(scaled.width)
+            image = scaled
+        }
+        let shot = Screenshot(
+            pngData: try ImageUtil.pngData(from: image),
+            pixelWidth: annotated.width,
+            pixelHeight: annotated.height,
+            coordinateScale: scale)
+        return (shot, elements)
+    }
+
     // MARK: - Pointing (pixel coordinates)
 
     /// Re-asserts frontmost IMMEDIATELY before posting input. ensureReady

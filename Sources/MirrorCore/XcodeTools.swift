@@ -263,6 +263,19 @@ public enum XcodeTools {
     }
 
     @discardableResult
+    /// Runs devicectl and returns its human-readable output, truncated to a
+    /// tool-friendly size.
+    public static func devicectlText(
+        _ arguments: [String], timeout: TimeInterval = 120, maxChars: Int = 12_000
+    ) async throws -> String {
+        let result = try await ProcessRunner.run(xcrun, ["devicectl"] + arguments, timeout: timeout)
+        guard result.exitCode == 0 else {
+            throw MirrorError("devicectl \(arguments.prefix(2).joined(separator: " ")) failed (exit \(result.exitCode)): \(result.stderr.isEmpty ? result.stdout : result.stderr)")
+        }
+        let output = result.stdout
+        return output.count > maxChars ? String(output.prefix(maxChars)) + "\n…(truncated)" : output
+    }
+
     public static func simctl(_ arguments: [String], timeout: TimeInterval = 120) async throws -> String {
         let result = try await ProcessRunner.run(xcrun, ["simctl"] + arguments, timeout: timeout)
         guard result.exitCode == 0 else {
