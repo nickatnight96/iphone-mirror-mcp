@@ -667,6 +667,41 @@ public actor MirrorSession {
         return element
     }
 
+    /// Finds a template image (a crop from a previous screenshot) on the
+    /// current screen via normalized cross-correlation. Returns matches in
+    /// full-resolution pixel coordinates, best first.
+    public func findImage(
+        templateData: Data, minScore: Double, multiScale: Bool
+    ) async throws -> [TemplateMatch.Match] {
+        if let error = ensureReady(forInput: false) { throw error }
+        guard let source = CGImageSourceCreateWithData(templateData as CFData, nil),
+              let template = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw MirrorError("The template is not a decodable image (PNG/JPEG).")
+        }
+        let capture = try await captureCurrentWindow()
+        lastImageSize = capture.geometry.imagePixelSize
+        let scales = multiScale ? [1.0, 0.75, 0.9, 1.15, 1.35] : [1.0]
+        return TemplateMatch.find(
+            template: template, in: capture.image,
+            minScore: min(max(minScore, 0.3), 0.999), scales: scales)
+    }
+
+    /// Locates the template and taps the best match's center.
+    public func tapImage(
+        templateData: Data, minScore: Double, multiScale: Bool,
+        expect: String?, expectTimeout: Double
+    ) async throws -> TemplateMatch.Match {
+        let matches = try await findImage(
+            templateData: templateData, minScore: minScore, multiScale: multiScale)
+        guard let best = matches.first else {
+            throw MirrorError(
+                "No on-screen region matched the template (min score \(minScore)).",
+                remediation: "Crop the template from a CURRENT full-resolution screenshot (same scale), or lower min_score / set multi_scale=true.")
+        }
+        try await tap(x: best.center.x, y: best.center.y, expect: expect, expectTimeout: expectTimeout)
+        return best
+    }
+
     /// Polls the screen until `query` appears or the timeout elapses.
     /// Returns the elapsed seconds on success.
     public func waitForText(_ query: String, timeoutSeconds: Double, exact: Bool) async throws -> Double {

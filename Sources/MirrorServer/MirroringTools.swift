@@ -463,6 +463,56 @@ enum MirroringTools {
             },
 
             RegisteredTool(
+                name: "find_image",
+                description: "Find a template image on the iPhone screen via template matching — for icon-only UI that OCR cannot name. The template should be a CROP from a previous screenshot at full resolution (same pixel scale). Returns matches with tappable centers, best first. \(coordinateNote)",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "template_path": ["type": "string", "description": "Path to the template image file (PNG/JPEG)"],
+                        "template_base64": ["type": "string", "description": "Alternatively, the template image as base64"],
+                        "min_score": ["type": "number", "description": "Match threshold 0.3-0.999 (default 0.8)"],
+                        "multi_scale": ["type": "boolean", "description": "Also try 0.75×-1.35× template scales (default false; slower)"],
+                    ],
+                ]
+            ) { args in
+                let matches = try await session.findImage(
+                    templateData: try loadTemplate(args),
+                    minScore: try args.optionalDouble("min_score") ?? 0.8,
+                    multiScale: try args.bool("multi_scale", default: false))
+                guard !matches.isEmpty else {
+                    return textResult("No match. Crop the template from a current screenshot, or lower min_score / set multi_scale=true.")
+                }
+                let lines = matches.map { match in
+                    "center=(\(Int(match.center.x)), \(Int(match.center.y))) box=(\(Int(match.box.minX)),\(Int(match.box.minY)),\(Int(match.box.width))x\(Int(match.box.height))) score=\(String(format: "%.2f", match.score))"
+                }
+                return textResult(lines.joined(separator: "\n"))
+            },
+
+            RegisteredTool(
+                name: "tap_image",
+                description: "Find a template image on the screen (see find_image) and tap the best match's center. Pass expect to verify the tap took effect.",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "template_path": ["type": "string", "description": "Path to the template image file (PNG/JPEG)"],
+                        "template_base64": ["type": "string", "description": "Alternatively, the template image as base64"],
+                        "min_score": ["type": "number", "description": "Match threshold 0.3-0.999 (default 0.8)"],
+                        "multi_scale": ["type": "boolean", "description": "Also try 0.75×-1.35× template scales (default false)"],
+                        "expect": ["type": "string", "description": "Text that must appear after the tap"],
+                        "expect_timeout_seconds": ["type": "number", "description": "Default 10"],
+                    ],
+                ]
+            ) { args in
+                let match = try await session.tapImage(
+                    templateData: try loadTemplate(args),
+                    minScore: try args.optionalDouble("min_score") ?? 0.8,
+                    multiScale: try args.bool("multi_scale", default: false),
+                    expect: try args.optionalString("expect"),
+                    expectTimeout: try args.optionalDouble("expect_timeout_seconds") ?? 10)
+                return textResult("Tapped image match at (\(Int(match.center.x)), \(Int(match.center.y))) score=\(String(format: "%.2f", match.score)).")
+            },
+
+            RegisteredTool(
                 name: "batch",
                 description: "Run several input steps in ONE call — far faster than separate tool calls for scripted flows. Steps run in order; the first failure stops the batch and reports the step index. Step tools: tap, double_tap, long_press, swipe, drag, type_text, paste_text, press_key, tap_text, wait_for_text, home, app_switcher, spotlight, launch_app, open_url, sleep_ms. Each step: {\"tool\": name, \"args\": {…}} with the same args as the standalone tool.",
                 schema: [
@@ -505,6 +555,24 @@ enum MirroringTools {
                 return textResult(results.joined(separator: "\n"))
             },
         ]
+    }
+
+    /// Loads a find_image/tap_image template from template_path or
+    /// template_base64.
+    private static func loadTemplate(_ args: ToolArgs) throws -> Data {
+        if let path = try args.optionalString("template_path") {
+            guard let data = FileManager.default.contents(atPath: path) else {
+                throw MirrorError("No readable file at \(path).")
+            }
+            return data
+        }
+        if let base64 = try args.optionalString("template_base64") {
+            guard let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else {
+                throw MirrorError("template_base64 is not valid base64.")
+            }
+            return data
+        }
+        throw MirrorError("Provide template_path or template_base64.")
     }
 
     /// Dispatch for batch steps — the same session paths as the standalone

@@ -33,6 +33,8 @@ final class ToolCatalogTests: XCTestCase {
             "sim_push", "sim_privacy", "sim_appearance", "sim_location",
             "sim_statusbar", "sim_addmedia", "sim_uninstall", "sim_erase", "sim_apps",
             "device_info", "device_apps", "device_uninstall",
+            // Phase 3
+            "find_image", "tap_image",
         ] {
             XCTAssertTrue(names.contains(required), "missing tool \(required)")
         }
