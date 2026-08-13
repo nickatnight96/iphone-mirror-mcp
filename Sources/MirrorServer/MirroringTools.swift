@@ -66,10 +66,24 @@ enum MirroringTools {
 
             RegisteredTool(
                 name: "tap",
-                description: "Tap the iPhone screen. \(coordinateNote)",
-                schema: ["type": "object", "properties": .object(xyProperties), "required": ["x", "y"]]
+                description: "Tap the iPhone screen. \(coordinateNote) Pass expect to VERIFY the tap: the call fails unless that text appears afterwards — strongly recommended, silent misses are this transport's main failure mode.",
+                schema: [
+                    "type": "object",
+                    "properties": .object(xyProperties.merging([
+                        "expect": ["type": "string", "description": "Text that must appear on screen after the tap (verified via OCR polling)"],
+                        "expect_timeout_seconds": ["type": "number", "description": "How long to wait for expect (default 10)"],
+                    ]) { a, _ in a }),
+                    "required": ["x", "y"],
+                ]
             ) { args in
-                try await session.tap(x: try args.double("x"), y: try args.double("y"))
+                let expect = try args.optionalString("expect")
+                try await session.tap(
+                    x: try args.double("x"), y: try args.double("y"),
+                    expect: expect,
+                    expectTimeout: try args.optionalDouble("expect_timeout_seconds") ?? 10)
+                if let expect {
+                    return textResult("Tapped (\(Int(try args.double("x"))), \(Int(try args.double("y")))) — verified: \"\(expect)\" is on screen.")
+                }
                 return textResult("Tapped (\(Int(try args.double("x"))), \(Int(try args.double("y")))). Take a screenshot to verify the result.")
             },
 
@@ -250,22 +264,28 @@ enum MirroringTools {
 
             RegisteredTool(
                 name: "tap_text",
-                description: "OCR-locate text on screen and tap its center. Best-match first; pass index to pick a later match.",
+                description: "OCR-locate text on screen and tap its center. Best-match first; pass index to pick a later match. Pass expect to VERIFY the tap: the call fails unless that text appears afterwards — strongly recommended.",
                 schema: [
                     "type": "object",
                     "properties": [
                         "query": ["type": "string"],
                         "index": ["type": "number", "description": "Which match to tap (0-based, default 0)"],
                         "exact": ["type": "boolean"],
+                        "expect": ["type": "string", "description": "Text that must appear on screen after the tap (verified via OCR polling)"],
+                        "expect_timeout_seconds": ["type": "number", "description": "How long to wait for expect (default 10)"],
                     ],
                     "required": ["query"],
                 ]
             ) { args in
+                let expect = try args.optionalString("expect")
                 let element = try await session.tapText(
                     try args.string("query"),
                     index: try args.int("index", default: 0),
-                    exact: try args.bool("exact", default: false))
-                return textResult("Tapped \"\(element.text)\" at (\(Int(element.center.x)), \(Int(element.center.y))).")
+                    exact: try args.bool("exact", default: false),
+                    expect: expect,
+                    expectTimeout: try args.optionalDouble("expect_timeout_seconds") ?? 10)
+                let verified = expect.map { " — verified: \"\($0)\" is on screen" } ?? ""
+                return textResult("Tapped \"\(element.text)\" at (\(Int(element.center.x)), \(Int(element.center.y)))\(verified).")
             },
 
             RegisteredTool(
@@ -324,6 +344,58 @@ enum MirroringTools {
                     seconds: try args.int("seconds"),
                     outputPath: try args.optionalString("output_path"))
                 return textResult("Recording saved to \(path)")
+            },
+
+            RegisteredTool(
+                name: "paste_text",
+                description: "Paste text into the focused phone text field via the bridged clipboard (⌘V) — full fidelity (emoji/CJK/accents survive) and instant for long strings, unlike type_text's ASCII keystrokes. The user's Mac clipboard is saved and restored. A text field must be focused (tap it first). Set submit=true to press Return afterwards.",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "text": ["type": "string"],
+                        "submit": ["type": "boolean", "description": "Press Return after pasting (default false)"],
+                    ],
+                    "required": ["text"],
+                ]
+            ) { args in
+                try await session.pasteText(
+                    try args.string("text"), submit: try args.bool("submit", default: false))
+                return textResult("Pasted. Take a screenshot to verify the field contents.")
+            },
+
+            RegisteredTool(
+                name: "read_clipboard",
+                description: "Read the clipboard as text. With copy_first=true (default), presses ⌘C on the phone first, copying the current selection through the bridged clipboard — the way to extract exact text from the phone without OCR. Select the text on the phone first (long_press + drag handles, or tap a text field and cmd+a via press_key).",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "copy_first": ["type": "boolean", "description": "Press ⌘C on the phone before reading (default true)"],
+                    ],
+                ]
+            ) { args in
+                let text = try await session.copyAndReadClipboard(
+                    pressCopy: try args.bool("copy_first", default: true))
+                guard let text, !text.isEmpty else {
+                    return textResult("Clipboard has no text. Make sure something was selected on the phone (or pass copy_first=false to read the Mac clipboard as-is).")
+                }
+                return textResult("Clipboard text:\n\(text)")
+            },
+
+            RegisteredTool(
+                name: "mirror_restart",
+                description: "Fully restart the iPhone Mirroring app: quit, relaunch, resume. THE recovery for a zombie session — video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way.",
+                schema: ["type": "object", "properties": [:]]
+            ) { _ in
+                let status = try await session.restartMirroring()
+                return textResult("iPhone Mirroring restarted. Session: \(status.state.rawValue). Take a screenshot to confirm the phone screen is live.")
+            },
+
+            RegisteredTool(
+                name: "doctor",
+                description: "Non-destructive end-to-end self-test: all four permissions (Accessibility, Screen Recording, post-event access, Automation/System Events), session + window state, a capture round-trip, and an input-delivery probe (marches the cursor and verifies events actually moved it — no clicks posted). Run this first when input or capture misbehaves.",
+                schema: ["type": "object", "properties": [:]]
+            ) { _ in
+                textResult(await session.doctor().describe())
             },
         ]
     }

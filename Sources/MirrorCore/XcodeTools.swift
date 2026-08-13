@@ -48,6 +48,9 @@ public enum XcodeTools {
         public var allowProvisioningUpdates: Bool
         public var extraArguments: [String]
         public var timeoutSeconds: Int
+        /// When set, xcodebuild writes an .xcresult bundle here (test runs) —
+        /// attachments/screenshots can then be exported from it.
+        public var resultBundlePath: String?
 
         public init(
             projectPath: String? = nil, scheme: String, configuration: String? = nil,
@@ -71,6 +74,7 @@ public enum XcodeTools {
             if let configuration { args += ["-configuration", configuration] }
             if let destination { args += ["-destination", destination] }
             if let derivedDataPath { args += ["-derivedDataPath", derivedDataPath] }
+            if let resultBundlePath { args += ["-resultBundlePath", resultBundlePath] }
             if allowProvisioningUpdates { args.append("-allowProvisioningUpdates") }
             args += extraArguments
             args += action
@@ -123,8 +127,12 @@ public enum XcodeTools {
     }
 
     /// Finds the built .app bundle inside derived data for a configuration.
-    public static func builtAppPath(derivedDataPath: String, configuration: String) throws -> String {
-        let productsDir = derivedDataPath + "/Build/Products/\(configuration)-iphoneos"
+    /// `platformSuffix` is "iphoneos" for device builds, "iphonesimulator"
+    /// for simulator builds.
+    public static func builtAppPath(
+        derivedDataPath: String, configuration: String, platformSuffix: String = "iphoneos"
+    ) throws -> String {
+        let productsDir = derivedDataPath + "/Build/Products/\(configuration)-\(platformSuffix)"
         let contents = (try? FileManager.default.contentsOfDirectory(atPath: productsDir)) ?? []
         guard let app = contents.first(where: { $0.hasSuffix(".app") }) else {
             throw MirrorError(
@@ -306,5 +314,119 @@ public enum XcodeTools {
             deviceName: name, appPath: appPath, bundleID: bundleID,
             buildDescription: build.description, launchOutput: launchOutput
         )
+    }
+
+    // MARK: - Build & run on a simulator
+
+    /// Resolves a simulator for a run: explicit name/udid among available
+    /// sims; nil prefers the booted one, then the first available iPhone.
+    public static func resolveSimulatorForRun(_ query: String?) async throws -> (udid: String, name: String, booted: Bool) {
+        let list = try await simulators()
+        let all = list.devices.values.flatMap { $0 }.filter { $0.isAvailable ?? false }
+        if let query {
+            let lowered = query.lowercased()
+            guard let match = all.first(where: {
+                $0.udid?.lowercased() == lowered || $0.name?.lowercased() == lowered
+            }), let udid = match.udid else {
+                throw MirrorError("No available simulator matched \"\(query)\". Use the devices tool to list them.")
+            }
+            return (udid, match.name ?? udid, match.state == "Booted")
+        }
+        if let booted = all.first(where: { $0.state == "Booted" }), let udid = booted.udid {
+            return (udid, booted.name ?? udid, true)
+        }
+        guard let iphone = all.first(where: { ($0.name ?? "").contains("iPhone") }), let udid = iphone.udid else {
+            throw MirrorError("No available iPhone simulator found.")
+        }
+        return (udid, iphone.name ?? udid, false)
+    }
+
+    /// The simulator twin of buildAndRunOnDevice: build for the simulator,
+    /// boot it if needed, install, launch.
+    public static func buildAndRunOnSimulator(
+        projectPath: String?, scheme: String, configuration: String,
+        simulator: String?, timeoutSeconds: Int
+    ) async throws -> RunOnDeviceOutcome {
+        let (udid, name, booted) = try await resolveSimulatorForRun(simulator)
+
+        let derivedData = (workingDirectory(projectPath: projectPath) ?? NSTemporaryDirectory())
+            + "/.iphone-mirror-mcp-derived"
+        let request = BuildRequest(
+            projectPath: projectPath, scheme: scheme, configuration: configuration,
+            destination: "platform=iOS Simulator,id=\(udid)",
+            derivedDataPath: derivedData,
+            timeoutSeconds: timeoutSeconds
+        )
+        let build = try await build(request)
+        guard build.succeeded else {
+            throw MirrorError("Build failed:\n\(build.description)")
+        }
+
+        if !booted {
+            do { _ = try await simctl(["boot", udid]) }
+            catch let error as MirrorError where error.message.contains("state: Booted") {}
+        }
+        _ = try await ProcessRunner.run("/usr/bin/open", ["-a", "Simulator"], timeout: 30)
+
+        let appPath = try builtAppPath(
+            derivedDataPath: derivedData, configuration: configuration,
+            platformSuffix: "iphonesimulator")
+        let bundleID = try bundleIdentifier(ofApp: appPath)
+        _ = try await simctl(["install", udid, appPath])
+        let launchOutput = try await simctl(["launch", udid, bundleID])
+
+        return RunOnDeviceOutcome(
+            deviceName: name, appPath: appPath, bundleID: bundleID,
+            buildDescription: build.description, launchOutput: launchOutput
+        )
+    }
+
+    // MARK: - Logs & result bundles
+
+    /// Arguments for reading a simulator's recent unified log.
+    /// Pure so tests can pin the shape.
+    public static func simLogShowArguments(
+        udid: String, last: String, process: String?, predicate: String?
+    ) -> [String] {
+        var args = ["spawn", udid, "log", "show", "--last", last, "--style", "compact"]
+        var predicates: [String] = []
+        if let process { predicates.append("process == \"\(process)\"") }
+        if let predicate { predicates.append("(\(predicate))") }
+        if !predicates.isEmpty {
+            args += ["--predicate", predicates.joined(separator: " AND ")]
+        }
+        return args
+    }
+
+    /// Recent unified-log entries from a simulator, optionally filtered to a
+    /// process name and/or an NSPredicate. Output is tail-truncated.
+    public static func simLog(
+        simulator: String?, last: String, process: String?, predicate: String?, maxChars: Int = 20_000
+    ) async throws -> String {
+        let (udid, name) = try await resolveSimulator(simulator)
+        let output = try await simctl(
+            simLogShowArguments(udid: udid, last: last, process: process, predicate: predicate),
+            timeout: 120)
+        let trimmed = output.count > maxChars ? "…(truncated)…\n" + output.suffix(maxChars) : output
+        return "Log of \(name) (last \(last)\(process.map { ", process \($0)" } ?? "")):\n\(trimmed)"
+    }
+
+    /// Exports every attachment (screenshots, txt, …) from an .xcresult
+    /// bundle into a directory and returns the exported file paths.
+    public static func exportAttachments(xcresultPath: String, outputDir: String?) async throws -> (dir: String, files: [String]) {
+        guard FileManager.default.fileExists(atPath: xcresultPath) else {
+            throw MirrorError("No .xcresult bundle at \(xcresultPath).",
+                              remediation: "Run xcode_test first — its output includes the result bundle path.")
+        }
+        let dir = outputDir ?? NSTemporaryDirectory() + "xcresult-attachments-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let result = try await ProcessRunner.run(
+            xcrun, ["xcresulttool", "export", "attachments", "--path", xcresultPath, "--output-path", dir],
+            timeout: 120)
+        guard result.exitCode == 0 else {
+            throw MirrorError("xcresulttool export failed (exit \(result.exitCode)): \(result.stderr)")
+        }
+        let files = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted()
+        return (dir, files)
     }
 }

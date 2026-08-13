@@ -56,6 +56,23 @@ final class LiveIntegrationTests: XCTestCase {
                        "iPhone Mirroring is not frontmost after activate() — input would be silently dropped")
     }
 
+    /// paste_text's clipboard save/restore contract: whatever the user had
+    /// on the pasteboard must survive a set + restore round-trip. Live-gated
+    /// because it touches the real user pasteboard.
+    func testPasteboardSnapshotRestoreRoundTrip() throws {
+        try requireLive()
+        let original = MacPasteboard.snapshot()
+        defer { MacPasteboard.restore(original) }
+
+        let sentinel = "iphone-mirror-mcp-roundtrip-\(UUID().uuidString)"
+        MacPasteboard.setString(sentinel)
+        XCTAssertEqual(MacPasteboard.string(), sentinel)
+
+        MacPasteboard.restore(original)
+        // Restoring the original must remove the sentinel again.
+        XCTAssertNotEqual(MacPasteboard.string(), sentinel)
+    }
+
     /// F2 (2026-08-12 shakedown): scroll gestures route by the REAL cursor
     /// position, so placeCursor must verifiably move it — not just post a
     /// warp and hope. Restores the user's cursor afterwards.

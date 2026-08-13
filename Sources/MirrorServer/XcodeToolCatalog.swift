@@ -58,8 +58,16 @@ enum XcodeToolCatalog {
                         request.destination = "platform=iOS Simulator,id=\(sim.udid)"
                     }
                 }
+                // Always keep the result bundle: attachments/screenshots can
+                // then be pulled out with xcresult_attachments.
+                let resultBundle = NSTemporaryDirectory() + "iphone-mirror-test-\(UUID().uuidString).xcresult"
+                request.resultBundlePath = resultBundle
                 let outcome = try await XcodeTools.test(request, onlyTesting: try args.stringArray("only_testing"))
-                return textResult(outcome.description)
+                var text = outcome.description
+                if FileManager.default.fileExists(atPath: resultBundle) {
+                    text += "\nResult bundle: \(resultBundle) (use xcresult_attachments to export screenshots/attachments)"
+                }
+                return textResult(text)
             },
 
             RegisteredTool(
@@ -145,6 +153,76 @@ enum XcodeToolCatalog {
                     \(outcome.buildDescription)
                     Next: use screenshot / tap / read_screen to drive the app on the mirrored screen.
                     """)
+            },
+
+            RegisteredTool(
+                name: "run_on_sim",
+                description: "Build the scheme for a simulator, boot it if needed, install, and launch — the simulator twin of run_on_iphone. Then drive it with sim_screenshot / sim_openurl (simulator coordinates are separate from the mirroring tools).",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "scheme": ["type": "string"],
+                        "project_path": ["type": "string", "description": "Path to .xcodeproj/.xcworkspace or project directory (default: current directory)"],
+                        "configuration": ["type": "string", "description": "Default Debug"],
+                        "simulator": ["type": "string", "description": "Simulator name or udid (default: the booted one, else the first available iPhone)"],
+                        "timeout_seconds": ["type": "number", "description": "Build timeout, default 900"],
+                    ],
+                    "required": ["scheme"],
+                ]
+            ) { args in
+                let outcome = try await XcodeTools.buildAndRunOnSimulator(
+                    projectPath: try args.optionalString("project_path"),
+                    scheme: try args.string("scheme"),
+                    configuration: try args.optionalString("configuration") ?? "Debug",
+                    simulator: try args.optionalString("simulator"),
+                    timeoutSeconds: try args.int("timeout_seconds", default: 900))
+                return textResult("""
+                    Built, installed, and launched \(outcome.bundleID) on simulator \(outcome.deviceName).
+                    App: \(outcome.appPath)
+                    \(outcome.buildDescription)
+                    Next: sim_screenshot to see it, sim_log for its output.
+                    """)
+            },
+
+            RegisteredTool(
+                name: "sim_log",
+                description: "Read a simulator's recent unified log (default: the booted one) — the app's os_log/print output. Filter by process name (recommended: the app's name) and/or a custom NSPredicate.",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "simulator": ["type": "string", "description": "Name or udid (default: booted)"],
+                        "last": ["type": "string", "description": "How far back, e.g. \"2m\", \"30s\", \"1h\" (default 2m)"],
+                        "process": ["type": "string", "description": "Only entries from this process name"],
+                        "predicate": ["type": "string", "description": "Additional NSPredicate, e.g. eventMessage contains \"error\""],
+                    ],
+                ]
+            ) { args in
+                textResult(try await XcodeTools.simLog(
+                    simulator: try args.optionalString("simulator"),
+                    last: try args.optionalString("last") ?? "2m",
+                    process: try args.optionalString("process"),
+                    predicate: try args.optionalString("predicate")))
+            },
+
+            RegisteredTool(
+                name: "xcresult_attachments",
+                description: "Export every attachment (failure screenshots, activity attachments, …) from an .xcresult bundle to a directory and list the files. xcode_test's output includes the bundle path.",
+                schema: [
+                    "type": "object",
+                    "properties": [
+                        "xcresult_path": ["type": "string", "description": "Path to the .xcresult bundle"],
+                        "output_dir": ["type": "string", "description": "Where to export (default: a temp directory)"],
+                    ],
+                    "required": ["xcresult_path"],
+                ]
+            ) { args in
+                let (dir, files) = try await XcodeTools.exportAttachments(
+                    xcresultPath: try args.string("xcresult_path"),
+                    outputDir: try args.optionalString("output_dir"))
+                guard !files.isEmpty else {
+                    return textResult("No attachments in the bundle (exported to \(dir)).")
+                }
+                return textResult("Exported \(files.count) attachment(s) to \(dir):\n" + files.joined(separator: "\n"))
             },
 
             RegisteredTool(

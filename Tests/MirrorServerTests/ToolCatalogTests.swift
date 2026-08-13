@@ -24,6 +24,9 @@ final class ToolCatalogTests: XCTestCase {
             "xcode_list", "xcode_build", "xcode_test", "devices", "device_install",
             "device_launch", "run_on_iphone", "sim_boot", "sim_install", "sim_launch",
             "sim_terminate", "sim_screenshot", "sim_openurl",
+            // Phase 1
+            "paste_text", "read_clipboard", "mirror_restart", "doctor",
+            "run_on_sim", "sim_log", "xcresult_attachments",
         ] {
             XCTAssertTrue(names.contains(required), "missing tool \(required)")
         }

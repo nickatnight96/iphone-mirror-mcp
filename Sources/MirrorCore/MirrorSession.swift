@@ -252,12 +252,28 @@ public actor MirrorSession {
         CGPoint(x: geometry.boundsPoints.midX, y: geometry.boundsPoints.midY)
     }
 
-    public func tap(x: Double, y: Double) async throws {
+    public func tap(x: Double, y: Double, expect: String? = nil, expectTimeout: Double = 10) async throws {
         if let error = ensureReady(forInput: true) { throw error }
         let geometry = try await currentGeometry()
         try assertFrontmostForInput()
         try MirrorInput.tap(at: geometry.screenPoint(fromPixelX: x, pixelY: y),
                             through: Self.engagementWaypoint(of: geometry))
+        try await verifyExpectation(expect, timeout: expectTimeout, after: "tap")
+    }
+
+    /// Post-condition check for verified input: waits for `expect` to appear
+    /// and converts a timeout into an input-shaped error — a tap that
+    /// "succeeded" without its expected effect is this server's most
+    /// dangerous failure mode.
+    private func verifyExpectation(_ expect: String?, timeout: Double, after action: String) async throws {
+        guard let expect else { return }
+        do {
+            _ = try await waitForText(expect, timeoutSeconds: timeout, exact: false)
+        } catch {
+            throw MirrorError(
+                "The \(action) was posted, but \"\(expect)\" did not appear within \(Int(max(timeout, 1)))s.",
+                remediation: "Take a screenshot: the \(action) may have missed its target, landed on a different element, or the screen changed differently than expected.")
+        }
     }
 
     public func doubleTap(x: Double, y: Double) async throws {
@@ -313,6 +329,140 @@ public actor MirrorSession {
             try MirrorInput.pressKey(keyCode: 36)
         }
         return skipped
+    }
+
+    /// Paste render time before the user's clipboard is restored.
+    static let pasteSettleUs: UInt32 = 700_000
+
+    /// Pastes text into the focused phone field via the bridged pasteboard
+    /// (⌘V) — the only full-fidelity path: emoji/CJK/accents survive, and
+    /// long strings land instantly instead of keystroke-by-keystroke. The
+    /// user's Mac clipboard is snapshotted and restored afterwards.
+    public func pasteText(_ text: String, submit: Bool) async throws {
+        if let error = ensureReady(forInput: true) { throw error }
+        try assertFrontmostForInput()
+        let saved = MacPasteboard.snapshot()
+        MacPasteboard.setString(text)
+        defer { MacPasteboard.restore(saved) }
+        try MirrorInput.pressKey(keyCode: 0x09, flags: .maskCommand)  // ⌘V
+        usleep(Self.pasteSettleUs)
+        if submit {
+            try MirrorInput.pressKey(keyCode: 36)
+        }
+    }
+
+    /// Presses ⌘C on the phone (copying any selection) and returns what the
+    /// bridged pasteboard then holds. Also usable without the copy to just
+    /// read the current clipboard.
+    public func copyAndReadClipboard(pressCopy: Bool) async throws -> String? {
+        if pressCopy {
+            if let error = ensureReady(forInput: true) { throw error }
+            try assertFrontmostForInput()
+            try MirrorInput.pressKey(keyCode: 0x08, flags: .maskCommand)  // ⌘C
+            usleep(Self.pasteSettleUs)
+        }
+        return MacPasteboard.string()
+    }
+
+    /// Full mirroring-app restart: the only cure for the ZOMBIE state (video
+    /// streams but every input is silently dropped — a wedged gesture stream
+    /// can cause it). Quit, wait for exit, relaunch, resume.
+    public func restartMirroring() async throws -> Status {
+        if let app = bridge.findProcess() {
+            app.terminate()
+            for _ in 0..<10 where bridge.findProcess() != nil {
+                try await Task.sleep(nanoseconds: 500_000_000)
+            }
+            if bridge.findProcess() != nil {
+                app.forceTerminate()
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+        try await bridge.launchApp()
+        _ = ensureReady(forInput: false)  // auto-resume if it comes up paused
+        return status()
+    }
+
+    // MARK: - Doctor
+
+    public struct DoctorReport: Sendable {
+        public var accessibility = false
+        public var screenRecording = false
+        public var postEventAccess = false
+        public var automation: Bool?
+        public var sessionState = ""
+        public var windowLine = "no window"
+        public var frontmostLine = ""
+        public var captureLine = ""
+        public var inputDeliveryLine = ""
+
+        public func describe() -> String {
+            func mark(_ ok: Bool) -> String { ok ? "PASS" : "FAIL" }
+            var lines = ["== iphone-mirror doctor =="]
+            lines.append("[\(mark(accessibility))] Accessibility permission")
+            lines.append("[\(mark(screenRecording))] Screen Recording permission")
+            lines.append("[\(mark(postEventAccess))] Post-event access (synthetic input accepted by macOS)")
+            switch automation {
+            case true?: lines.append("[PASS] Automation permission (System Events)")
+            case false?: lines.append("[FAIL] Automation permission (System Events) — resume clicks and the activation fallback need it; grant in System Settings → Privacy & Security → Automation")
+            default: lines.append("[????] Automation permission (System Events) — undetermined; it will be requested on first use")
+            }
+            lines.append("Session: \(sessionState)")
+            lines.append("Window: \(windowLine)")
+            if !frontmostLine.isEmpty { lines.append(frontmostLine) }
+            if !captureLine.isEmpty { lines.append(captureLine) }
+            if !inputDeliveryLine.isEmpty { lines.append(inputDeliveryLine) }
+            return lines.joined(separator: "\n")
+        }
+    }
+
+    /// Non-destructive end-to-end self-test: all four permissions, session
+    /// and window state, a capture round-trip, and the input-delivery probe
+    /// (march the cursor and verify events moved it — no clicks posted).
+    public func doctor() async -> DoctorReport {
+        var report = DoctorReport()
+        let permissions = PermissionStatus.current()
+        report.accessibility = permissions.accessibility
+        report.screenRecording = permissions.screenRecording
+        report.postEventAccess = PermissionStatus.postEventAccess()
+        report.automation = PermissionStatus.automationForSystemEvents()
+        report.sessionState = bridge.state().rawValue
+
+        if let info = bridge.windowInfo() {
+            let b = info.bounds
+            report.windowLine = "id=\(info.windowID) origin=(\(Int(b.origin.x)), \(Int(b.origin.y))) size=\(Int(b.width))x\(Int(b.height)) points"
+            + (info.windowID == 0 ? " (AX fallback — no window ID; capture may degrade)" : "")
+
+            if let front = bridge.frontmostPID() {
+                report.frontmostLine = front == info.pid
+                    ? "[PASS] iPhone Mirroring is frontmost"
+                    : "[info] Frontmost app pid=\(front) (mirroring is pid \(info.pid)); input tools will activate it"
+            } else {
+                report.frontmostLine = "[FAIL] Frontmost query returned nothing — CGWindowList unavailable?"
+            }
+
+            if report.screenRecording {
+                let start = Date()
+                do {
+                    let capture = try await MirrorCapture.capture(windowInfo: info)
+                    report.captureLine = "[PASS] Capture: \(capture.image.width)x\(capture.image.height) px in \(String(format: "%.2f", Date().timeIntervalSince(start)))s"
+                } catch {
+                    report.captureLine = "[FAIL] Capture: \(error)"
+                }
+            }
+
+            if report.accessibility, bridge.state() == .connected {
+                let center = CGPoint(x: b.midX, y: b.midY)
+                bridge.activate()
+                do {
+                    try MirrorInput.placeCursor(at: center)
+                    report.inputDeliveryLine = "[PASS] Input delivery: cursor march verified (no clicks posted)"
+                } catch {
+                    report.inputDeliveryLine = "[FAIL] Input delivery: \(error)"
+                }
+            }
+        }
+        return report
     }
 
     public func pressKey(spec: String) async throws {
@@ -391,7 +541,10 @@ public actor MirrorSession {
     }
 
     /// OCR-locate `query` and tap the center of the `index`-th match.
-    public func tapText(_ query: String, index: Int, exact: Bool) async throws -> OCRElement {
+    public func tapText(
+        _ query: String, index: Int, exact: Bool,
+        expect: String? = nil, expectTimeout: Double = 10
+    ) async throws -> OCRElement {
         let matches = try await findText(query, exact: exact)
         guard !matches.isEmpty else {
             throw MirrorError(
@@ -402,7 +555,7 @@ public actor MirrorSession {
             throw MirrorError("Match index \(index) out of range: only \(matches.count) match(es) for \"\(query)\".")
         }
         let element = matches[index]
-        try await tap(x: element.center.x, y: element.center.y)
+        try await tap(x: element.center.x, y: element.center.y, expect: expect, expectTimeout: expectTimeout)
         return element
     }
 

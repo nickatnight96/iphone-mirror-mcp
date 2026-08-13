@@ -16,6 +16,31 @@ public struct PermissionStatus: Sendable {
         )
     }
 
+    /// Whether posted CGEvents are accepted (separate TCC gate from the
+    /// Accessibility trust check, usually granted together).
+    public static func postEventAccess() -> Bool {
+        CGPreflightPostEventAccess()
+    }
+
+    /// Whether this process may automate System Events (the Automation
+    /// permission) — needed by the resume-overlay clicks and the AppleScript
+    /// activation fallback. nil = undetermined (macOS has not asked yet, or
+    /// System Events is not running).
+    public static func automationForSystemEvents() -> Bool? {
+        var address = AEAddressDesc()
+        let bundleID = "com.apple.systemevents"
+        let status = bundleID.utf8CString.withUnsafeBufferPointer { buffer in
+            AECreateDesc(typeApplicationBundleID, buffer.baseAddress, buffer.count - 1, &address)
+        }
+        guard status == noErr else { return nil }
+        defer { AEDisposeDesc(&address) }
+        switch AEDeterminePermissionToAutomateTarget(&address, typeWildCard, typeWildCard, false) {
+        case noErr: return true
+        case OSStatus(errAEEventNotPermitted): return false
+        default: return nil  // would-require-consent, target not running, …
+        }
+    }
+
     public var description: String {
         var lines: [String] = []
         lines.append("Accessibility (synthetic input): \(accessibility ? "granted" : "MISSING")")
