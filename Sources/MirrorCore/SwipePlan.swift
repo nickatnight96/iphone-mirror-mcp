@@ -10,6 +10,22 @@ public struct ScrollFrame: Equatable, Sendable {
         self.horizontal = horizontal
     }
     public var isZero: Bool { vertical == 0 && horizontal == 0 }
+    public static let zero = ScrollFrame(vertical: 0, horizontal: 0)
+}
+
+/// One scroll event of a fully phased gesture: the deltas plus the scroll /
+/// momentum phase fields it must carry. A gesture is a `[ScrollStep]` so the
+/// entire sequence — including the terminating lift and momentum close — can
+/// be materialized as CGEvents BEFORE anything posts.
+public struct ScrollStep: Equatable, Sendable {
+    public let frame: ScrollFrame
+    public let scrollPhase: Int64
+    public let momentumPhase: Int64
+    public init(frame: ScrollFrame, scrollPhase: Int64, momentumPhase: Int64) {
+        self.frame = frame
+        self.scrollPhase = scrollPhase
+        self.momentumPhase = momentumPhase
+    }
 }
 
 /// Computes the frame-by-frame scroll deltas for a swipe gesture.
@@ -49,6 +65,49 @@ public enum SwipePlan {
         public let drag: [ScrollFrame]
         /// Frames posted after the lift (momentum phases). Empty for slow swipes.
         public let momentum: [ScrollFrame]
+    }
+
+    // Scroll phase values observed in real trackpad traces.
+    public static let phaseMayBegin: Int64 = 128
+    public static let phaseBegan: Int64 = 1
+    public static let phaseChanged: Int64 = 2
+    public static let phaseEnded: Int64 = 4
+    public static let momentumBegin: Int64 = 1
+    public static let momentumContinue: Int64 = 2
+    public static let momentumEnd: Int64 = 3
+
+    /// The complete, phase-correct event sequence for a plan:
+    /// MayBegin prime → Began/Changed drag frames → zero-delta Ended lift →
+    /// momentum Begin/Continue frames → zero-delta momentum End close
+    /// (flicks only).
+    ///
+    /// INVARIANT: the sequence always terminates its phases — the lift always
+    /// follows the drag, and a momentum tail is always closed. A gesture cut
+    /// short (skipped lift/close) leaves iOS tracking a phantom finger:
+    /// SpringBoard wedges mid-transition and drops ALL further input until
+    /// the mirroring app restarts. Callers must post either the whole script
+    /// or none of it.
+    public static func script(for plan: Plan) -> [ScrollStep] {
+        var steps: [ScrollStep] = []
+        steps.reserveCapacity(plan.drag.count + plan.momentum.count + 3)
+        steps.append(ScrollStep(frame: .zero, scrollPhase: phaseMayBegin, momentumPhase: 0))
+        for (index, frame) in plan.drag.enumerated() {
+            steps.append(ScrollStep(
+                frame: frame,
+                scrollPhase: index == 0 ? phaseBegan : phaseChanged,
+                momentumPhase: 0))
+        }
+        steps.append(ScrollStep(frame: .zero, scrollPhase: phaseEnded, momentumPhase: 0))
+        for (index, frame) in plan.momentum.enumerated() {
+            steps.append(ScrollStep(
+                frame: frame,
+                scrollPhase: 0,
+                momentumPhase: index == 0 ? momentumBegin : momentumContinue))
+        }
+        if !plan.momentum.isEmpty {
+            steps.append(ScrollStep(frame: .zero, scrollPhase: 0, momentumPhase: momentumEnd))
+        }
+        return steps
     }
 
     /// Plans a swipe covering (`deltaX`, `deltaY`) pixels over `durationMs`.

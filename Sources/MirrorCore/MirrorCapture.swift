@@ -39,8 +39,11 @@ public enum MirrorCapture {
             if windowInfo.windowID != 0 {
                 return window.windowID == windowInfo.windowID
             }
+            // Both dimensions: the app owns 1512×33 phantom windows that a
+            // width-only filter matches, capturing a blank strip.
             return window.owningApplication?.bundleIdentifier == MirrorWindowBridge.bundleID
-                && window.frame.width >= 100
+                && MirrorWindowBridge.isUsableWindowSize(
+                    width: window.frame.width, height: window.frame.height)
         }
         guard let scWindow else {
             throw MirrorError("ScreenCaptureKit could not find the iPhone Mirroring window (id \(windowInfo.windowID)).")
@@ -81,7 +84,7 @@ public enum MirrorCapture {
                                   shouldInterpolate: false, intent: .defaultIntent) else {
             throw MirrorError(
                 "screencapture failed (exit \(result.exitCode)): \(result.stderr)",
-                remediation: "Check Screen Recording permission for the app hosting this MCP server."
+                remediation: captureRemediation(permissionGranted: CGPreflightScreenCaptureAccess())
             )
         }
         let geometry = WindowGeometry(
@@ -112,9 +115,20 @@ public enum MirrorCapture {
         guard FileManager.default.fileExists(atPath: path) else {
             throw MirrorError(
                 "Screen recording produced no file (exit \(result.exitCode)): \(result.stderr)",
-                remediation: "Check Screen Recording permission for the app hosting this MCP server."
+                remediation: captureRemediation(permissionGranted: CGPreflightScreenCaptureAccess())
             )
         }
         return path
+    }
+
+    /// A capture failure with the permission GRANTED is almost always a
+    /// transient window-server condition (window mid-transition, Space
+    /// switch, session pause) — blaming the permission sends the caller to
+    /// System Settings for nothing. Only blame it when it is actually missing.
+    static func captureRemediation(permissionGranted: Bool) -> String {
+        if permissionGranted {
+            return "Screen Recording is granted, so this is usually transient (window mid-transition, Space switch, or the session pausing). Retry; if it persists, check the session with the status tool."
+        }
+        return "Check Screen Recording permission for the app hosting this MCP server."
     }
 }

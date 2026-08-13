@@ -25,14 +25,9 @@ public enum MirrorInput {
     static let fieldScrollPhase = CGEventField(rawValue: 99)!
     static let fieldMomentumPhase = CGEventField(rawValue: 123)!
 
-    // Scroll phase values observed in real trackpad traces.
-    static let phaseMayBegin: Int64 = 128
-    static let phaseBegan: Int64 = 1
-    static let phaseChanged: Int64 = 2
-    static let phaseEnded: Int64 = 4
-    static let momentumBegin: Int64 = 1
-    static let momentumContinue: Int64 = 2
-    static let momentumEnd: Int64 = 3
+    /// How close (screen points) the cursor must land to the gesture point
+    /// before scroll events are trusted to route into the mirroring window.
+    static let cursorPlacementTolerance: CGFloat = 3
 
     /// Clamp caller-supplied durations so UInt32 microsecond math cannot trap.
     static func clampDurationMs(_ ms: Int) -> Int { min(max(ms, 1), 60_000) }
@@ -45,12 +40,12 @@ public enum MirrorInput {
     private static func post(_ event: CGEvent) { event.post(tap: .cghidEventTap) }
 
     /// Hide the cursor and detach it from the physical mouse for the duration
-    /// of an operation, so synthetic pointer movement doesn't fight the user.
-    private static func withHiddenCursor<T>(warpTo point: CGPoint? = nil, _ body: () -> T) -> T {
-        if let point { CGWarpMouseCursorPosition(point) }  // warp BEFORE hiding
+    /// of an operation, so the user's real mouse movement can't hijack an
+    /// in-flight gesture (a mid-gesture routing change sends the tail into a
+    /// different window and leaves iOS tracking a phantom finger).
+    private static func withHiddenCursor<T>(_ body: () -> T) -> T {
         CGDisplayHideCursor(CGMainDisplayID())
         CGAssociateMouseAndMouseCursorPosition(0)
-        if point != nil { usleep(warpSettleUs) }
         defer {
             CGAssociateMouseAndMouseCursorPosition(1)
             CGDisplayShowCursor(CGMainDisplayID())
@@ -58,13 +53,164 @@ public enum MirrorInput {
         return body()
     }
 
+    /// Move the REAL cursor to `point` and verify it landed. Scroll gestures
+    /// are routed by the window server to the window under the physical
+    /// cursor — the location field on the posted events is not consulted —
+    /// so an unverified warp silently sends the whole gesture into whatever
+    /// window happens to be under the pointer.
+    ///
+    /// Must run BEFORE the cursor is disassociated from the mouse: position
+    /// changes while disassociated are not reliably applied.
+    /// After the cursor lands in the mirroring window, iPhone Mirroring
+    /// plays a pointer-integration transition; input posted during it is
+    /// dropped. Observed live 2026-08-12/13: click streams failed at 100ms
+    /// and 300ms settles; the verified-working recipe uses 500ms (after the
+    /// activation layer has already absorbed the window's unhide animation).
+    static let cursorEntrySettleUs: UInt32 = 500_000
+    static let cursorMarchSteps = 25
+    static let cursorMarchFrameUs: UInt32 = 8_000
+
+    /// How far the delta-march may land from its target and still count as
+    /// DELIVERED: integer delta rounding drifts up to steps/2 points (12.5),
+    /// plus slack. Distinct from cursorPlacementTolerance, which is the
+    /// final post-pin requirement.
+    static let marchDeliveryTolerance: CGFloat = 20
+
+    /// Place the cursor at `point`, optionally approaching THROUGH an
+    /// engagement waypoint (the mirroring window's center).
+    ///
+    /// Two phases are required, not an optimization: when the cursor first
+    /// crosses into the mirroring window, the app starts a pointer-
+    /// engagement transition and DISCARDS movement deltas that arrive while
+    /// it plays — a single march from outside ends with the app's internal
+    /// pointer stuck near the window edge it entered from, and the click
+    /// then resolves there (observed live 2026-08-13: a tap on the fourth
+    /// icon column opened the first-column app; the second attempt, with
+    /// the cursor already engaged inside the window, landed exactly).
+    /// Marching to the waypoint first absorbs the engagement, so the
+    /// waypoint→target march is delivered entirely post-engagement.
+    static func placeCursor(at point: CGPoint, through waypoint: CGPoint? = nil) throws {
+        if !CGPreflightPostEventAccess() { CGRequestPostEventAccess() }
+        for attempt in 0..<3 {
+            var start = CGEvent(source: nil)?.location ?? point
+            if let waypoint,
+               !cursorIsPlaced(current: start, target: waypoint, tolerance: engagementVicinity) {
+                _ = marchCursor(from: start, to: waypoint)
+                usleep(cursorEntrySettleUs)
+                start = CGEvent(source: nil)?.location ?? waypoint
+            }
+            let delivered = marchCursor(from: start, to: point)
+            // Engagement needs real movement AT the destination: a wiggle of
+            // small delta moves around the target is what the verified
+            // recipe uses — a march that merely arrives can leave the
+            // internal pointer unengaged.
+            wiggleCursor(around: point)
+            // Let the pointer-integration transition finish, then make sure
+            // the cursor is STILL there — the user's physical mouse can move
+            // it during the settle (it is not disassociated yet here).
+            usleep(cursorEntrySettleUs)
+            if delivered,
+               let settled = CGEvent(source: nil)?.location,
+               cursorIsPlaced(current: settled, target: point, tolerance: cursorPlacementTolerance) {
+                return
+            }
+            // A freshly spawned server can have its posted events silently
+            // dropped for a moment while macOS settles post-event access —
+            // back off briefly before re-marching.
+            if attempt < 2 { usleep(250_000) }
+        }
+        throw MirrorError(
+            "Synthetic input is not being delivered — the cursor did not respond to posted movement, so a click would be silently dropped (or land wherever the pointer happens to be).",
+            remediation: "Retry in a moment: a freshly started server can need a beat before macOS accepts its events. If it persists, check the Accessibility permission for the app hosting this server and make sure nothing else is controlling the mouse.")
+    }
+
+    /// The waypoint leg is skipped only when the cursor is already
+    /// essentially AT the waypoint (deep inside the window) — proximity to
+    /// anything else, including the target, is no proof of engagement.
+    static let engagementVicinity: CGFloat = 50
+
+    /// Small circular delta-move pattern around a point — the movement the
+    /// pointer-integration machinery needs to (re)engage at a location
+    /// (part of the live-verified click recipe, 2026-08-13). Ends with an
+    /// absolute move back to the point itself.
+    private static func wiggleCursor(around point: CGPoint) {
+        var previous = CGEvent(source: nil)?.location ?? point
+        for i in 0..<12 {
+            let angle = Double(i) * 0.6
+            let next = CGPoint(x: point.x + CGFloat(cos(angle) * 15),
+                               y: point.y + CGFloat(sin(angle) * 15))
+            if let move = mouseEvent(.mouseMoved, at: next) {
+                move.setIntegerValueField(.mouseEventDeltaX, value: Int64((next.x - previous.x).rounded()))
+                move.setIntegerValueField(.mouseEventDeltaY, value: Int64((next.y - previous.y).rounded()))
+                post(move)
+            }
+            previous = next
+            usleep(12_000)
+        }
+        if let back = mouseEvent(.mouseMoved, at: point) { post(back) }
+        CGWarpMouseCursorPosition(point)
+    }
+
+    /// iPhone Mirroring tracks its own internal pointer from movement
+    /// DELTAS, like a physical mouse — a teleported cursor (warp, or
+    /// zero-delta synthetic moves) leaves the internal pointer behind, and
+    /// clicks then resolve at the INTERNAL position, not the event location
+    /// (observed live 2026-08-12: clicks collapsed toward the window edge
+    /// the cursor entered from, opening the wrong app). So: march in small
+    /// steps with the delta fields populated.
+    ///
+    /// Returns whether the posted EVENTS demonstrably moved the cursor near
+    /// the target. This must be read BEFORE the pin warp below runs — the
+    /// warp moves the cursor without event delivery, so checking after it
+    /// would report success even while every posted event is being silently
+    /// dropped (observed live on a freshly spawned server), and the
+    /// subsequent click would be dropped the same way.
+    private static func marchCursor(from start: CGPoint, to end: CGPoint) -> Bool {
+        var previous = start
+        for step in 1...cursorMarchSteps {
+            let t = CGFloat(step) / CGFloat(cursorMarchSteps)
+            let next = CGPoint(x: start.x + (end.x - start.x) * t,
+                               y: start.y + (end.y - start.y) * t)
+            if let move = mouseEvent(.mouseMoved, at: next) {
+                move.setIntegerValueField(.mouseEventDeltaX, value: Int64((next.x - previous.x).rounded()))
+                move.setIntegerValueField(.mouseEventDeltaY, value: Int64((next.y - previous.y).rounded()))
+                post(move)
+            }
+            previous = next
+            usleep(cursorMarchFrameUs)
+        }
+        let delivered: Bool
+        if let reached = CGEvent(source: nil)?.location {
+            delivered = cursorIsPlaced(current: reached, target: end, tolerance: marchDeliveryTolerance)
+        } else {
+            delivered = false
+        }
+        // Pin the exact final position: when the system applies the integer
+        // DELTAS rather than the absolute locations, rounding drifts the
+        // march off-target by up to steps/2 points. The internal pointer has
+        // already converged via the march; this tiny absolute correction
+        // doesn't desync it.
+        if let settle = mouseEvent(.mouseMoved, at: end) { post(settle) }
+        CGWarpMouseCursorPosition(end)
+        return delivered
+    }
+
+    static func cursorIsPlaced(current: CGPoint, target: CGPoint, tolerance: CGFloat) -> Bool {
+        abs(current.x - target.x) <= tolerance && abs(current.y - target.y) <= tolerance
+    }
+
     // MARK: - Pointing
 
-    public static func tap(at point: CGPoint) throws {
+    public static func tap(at point: CGPoint, through waypoint: CGPoint? = nil) throws {
         guard let down = mouseEvent(.leftMouseDown, at: point),
               let up = mouseEvent(.leftMouseUp, at: point) else {
             throw MirrorError("Could not create mouse events (is Accessibility permission granted?)")
         }
+        // iPhone Mirroring drops pointer events while the physical cursor is
+        // outside its window (observed live 2026-08-12: identical taps failed
+        // with the cursor parked elsewhere and landed with it inside) — so
+        // every pointer gesture places the cursor first, not just swipes.
+        try placeCursor(at: point, through: waypoint)
         withHiddenCursor {
             post(down)
             usleep(clickHoldUs)
@@ -72,7 +218,7 @@ public enum MirrorInput {
         }
     }
 
-    public static func doubleTap(at point: CGPoint) throws {
+    public static func doubleTap(at point: CGPoint, through waypoint: CGPoint? = nil) throws {
         // Create every event up front so a creation failure throws instead
         // of silently reporting a tap that never happened.
         var pairs: [(down: CGEvent, up: CGEvent)] = []
@@ -85,6 +231,7 @@ public enum MirrorInput {
             up.setIntegerValueField(.mouseEventClickState, value: clickState)
             pairs.append((down, up))
         }
+        try placeCursor(at: point, through: waypoint)
         withHiddenCursor {
             for (index, pair) in pairs.enumerated() {
                 post(pair.down)
@@ -95,12 +242,13 @@ public enum MirrorInput {
         }
     }
 
-    public static func longPress(at point: CGPoint, durationMs: Int) throws {
+    public static func longPress(at point: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil) throws {
         let duration = clampDurationMs(durationMs)
         guard let down = mouseEvent(.leftMouseDown, at: point),
               let up = mouseEvent(.leftMouseUp, at: point) else {
             throw MirrorError("Could not create mouse events (is Accessibility permission granted?)")
         }
+        try placeCursor(at: point, through: waypoint)
         withHiddenCursor {
             post(down)
             usleep(UInt32(duration) * 1000)
@@ -110,21 +258,30 @@ public enum MirrorInput {
 
     /// Sustained mouse drag (icon rearrange, sliders, drag-and-drop) —
     /// distinct from swipe, which scrolls content.
-    public static func drag(from start: CGPoint, to end: CGPoint, durationMs: Int) throws {
+    public static func drag(from start: CGPoint, to end: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil) throws {
         let duration = clampDurationMs(durationMs)
         guard let down = mouseEvent(.leftMouseDown, at: start),
               let up = mouseEvent(.leftMouseUp, at: end) else {
             throw MirrorError("Could not create mouse events (is Accessibility permission granted?)")
         }
+        try placeCursor(at: start, through: waypoint)
         withHiddenCursor {
             post(down)
             let steps = max(10, duration / 16)
             let stepDelay = UInt32(duration) * 1000 / UInt32(steps)
+            var previous = start
             for i in 1...steps {
                 let t = CGFloat(i) / CGFloat(steps)
                 let point = CGPoint(x: start.x + (end.x - start.x) * t,
                                     y: start.y + (end.y - start.y) * t)
-                if let move = mouseEvent(.leftMouseDragged, at: point) { post(move) }
+                if let move = mouseEvent(.leftMouseDragged, at: point) {
+                    // Delta fields drive the app's internal pointer — see
+                    // marchCursor; zero-delta drags leave it behind.
+                    move.setIntegerValueField(.mouseEventDeltaX, value: Int64((point.x - previous.x).rounded()))
+                    move.setIntegerValueField(.mouseEventDeltaY, value: Int64((point.y - previous.y).rounded()))
+                    post(move)
+                }
+                previous = point
                 usleep(stepDelay)
             }
             post(up)
@@ -134,58 +291,49 @@ public enum MirrorInput {
     /// Swipe = trackpad-style continuous scroll gesture posted at the
     /// midpoint. Content follows the finger: positive deltaY drags content
     /// down, negative deltaX drags content left.
-    public static func swipe(from start: CGPoint, to end: CGPoint, durationMs: Int) throws {
+    ///
+    /// The phase sequence comes from `SwipePlan.script(for:)`, and every
+    /// CGEvent is materialized BEFORE anything posts: a creation failure
+    /// mid-gesture would cut the sequence short of its lift/close, leaving
+    /// iOS tracking a phantom finger — SpringBoard wedges mid-transition and
+    /// drops all further input until the mirroring app restarts.
+    public static func swipe(from start: CGPoint, to end: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil) throws {
         let duration = clampDurationMs(durationMs)
         let deltaX = end.x - start.x
         let deltaY = end.y - start.y
         let midpoint = CGPoint(x: start.x + deltaX / 2, y: start.y + deltaY / 2)
         let plan = SwipePlan.plan(deltaX: deltaX, deltaY: deltaY, durationMs: duration)
+        let steps = SwipePlan.script(for: plan)
 
-        withHiddenCursor(warpTo: midpoint) {
-            // Establish the cursor inside the window: after a focus switch the
-            // warp alone may not register with the window's event tracking.
-            if let move = mouseEvent(.mouseMoved, at: midpoint) {
-                post(move)
-                usleep(50_000)
+        var events: [CGEvent] = []
+        events.reserveCapacity(steps.count)
+        for step in steps {
+            guard let event = scrollEvent(step.frame, at: midpoint) else {
+                throw MirrorError("Could not create scroll events (is Accessibility permission granted?)")
             }
-            // Prime the scroll subsystem: iPhone Mirroring silently drops
-            // scroll events after a focus switch until a MayBegin arrives.
-            if let prime = scrollEvent(ScrollFrame(vertical: 0, horizontal: 0), at: midpoint) {
-                prime.setIntegerValueField(fieldScrollPhase, value: phaseMayBegin)
-                prime.setIntegerValueField(fieldMomentumPhase, value: 0)
-                post(prime)
-                usleep(warpSettleUs)
-            }
-            let stepDelay = UInt32(duration) * 1000 / UInt32(max(plan.drag.count, 1))
-            for (index, frame) in plan.drag.enumerated() {
-                guard let scroll = scrollEvent(frame, at: midpoint) else { continue }
-                scroll.setIntegerValueField(fieldScrollPhase, value: index == 0 ? phaseBegan : phaseChanged)
-                scroll.setIntegerValueField(fieldMomentumPhase, value: 0)
-                post(scroll)
-                usleep(stepDelay)
-            }
-            // Finger lift: zero-delta phaseEnded, as in a physical trace.
-            if let lift = scrollEvent(ScrollFrame(vertical: 0, horizontal: 0), at: midpoint) {
-                lift.setIntegerValueField(fieldScrollPhase, value: phaseEnded)
-                lift.setIntegerValueField(fieldMomentumPhase, value: 0)
-                post(lift)
-                usleep(momentumFrameUs)
-            }
-            // Momentum tail (flicks only) so iOS paging surfaces snap.
-            for (index, frame) in plan.momentum.enumerated() {
-                guard let scroll = scrollEvent(frame, at: midpoint) else { continue }
-                scroll.setIntegerValueField(fieldScrollPhase, value: 0)
-                scroll.setIntegerValueField(fieldMomentumPhase,
-                                            value: index == 0 ? momentumBegin : momentumContinue)
-                post(scroll)
-                usleep(momentumFrameUs)
-            }
-            // Close the tail or the next gesture's phaseBegan is ignored.
-            if !plan.momentum.isEmpty,
-               let close = scrollEvent(ScrollFrame(vertical: 0, horizontal: 0), at: midpoint) {
-                close.setIntegerValueField(fieldScrollPhase, value: 0)
-                close.setIntegerValueField(fieldMomentumPhase, value: momentumEnd)
-                post(close)
+            event.setIntegerValueField(fieldScrollPhase, value: step.scrollPhase)
+            event.setIntegerValueField(fieldMomentumPhase, value: step.momentumPhase)
+            events.append(event)
+        }
+
+        // Route the gesture: scroll events follow the REAL cursor, so place
+        // and verify it over the gesture point before detaching the mouse.
+        try placeCursor(at: midpoint, through: waypoint)
+
+        let stepDelay = UInt32(duration) * 1000 / UInt32(max(plan.drag.count, 1))
+        withHiddenCursor {
+            for (index, step) in steps.enumerated() {
+                post(events[index])
+                switch (step.scrollPhase, step.momentumPhase) {
+                case (SwipePlan.phaseMayBegin, _):
+                    // Prime settle: iPhone Mirroring silently drops scroll
+                    // events after a focus switch until a MayBegin arrives.
+                    usleep(warpSettleUs)
+                case (SwipePlan.phaseBegan, _), (SwipePlan.phaseChanged, _):
+                    usleep(stepDelay)
+                default:
+                    usleep(momentumFrameUs)
+                }
             }
         }
     }

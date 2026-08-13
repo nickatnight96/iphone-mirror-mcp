@@ -37,6 +37,14 @@ public final class MirrorWindowBridge: @unchecked Sendable {
     /// finishes is silently dropped.
     public static let activationSettleUs: UInt32 = 300_000
 
+    /// Extra settle after an activation that actually CHANGED focus: the
+    /// window (hide-on-blur) plays an unhide animation during which the
+    /// pointer-integration machinery discards ALL input — moves, deltas,
+    /// clicks (observed live 2026-08-13: identical click sequences failed
+    /// at 300ms after unhide and landed after a 1.5s wait). Skipped
+    /// entirely when the app was already frontmost.
+    public static let unhideSettleUs: UInt32 = 1_500_000
+
     public init() {}
 
     /// Live lookup of the iPhone Mirroring process.
@@ -56,12 +64,32 @@ public final class MirrorWindowBridge: @unchecked Sendable {
         return (unsafeDowncast(window, to: AXUIElement.self), pid)
     }
 
+    /// The mirroring app owns several menu-bar-sized phantom windows
+    /// (observed live: four at 1512×33 plus a 64×64) — every window lookup
+    /// must size-filter with BOTH dimensions or capture grabs a blank strip.
+    static func isUsableWindowSize(width: CGFloat, height: CGFloat) -> Bool {
+        width >= 100 && height >= 100
+    }
+
     /// Window bounds from CGWindowList — the compositor's authoritative
     /// position (AX can lag after focus/Space switches).
     public func windowInfo() -> MirrorWindowInfo? {
         guard let app = findProcess() else { return nil }
         let pid = app.processIdentifier
-        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+        if let info = Self.windowMatch(pid: pid, options: .optionOnScreenOnly) { return info }
+        // The window may be hidden or on another Space. optionAll still
+        // lists it WITH its real window ID — which downstream capture
+        // needs: with windowID 0, SCK's bundle-based guess can land on one
+        // of the app's phantom windows and return a blank strip.
+        if let info = Self.windowMatch(pid: pid, options: .optionAll) { return info }
+        // Last resort: AX geometry (no window ID).
+        guard let (element, axPid) = mainWindowElement(),
+              let geometry = Self.axGeometry(of: element) else { return nil }
+        return MirrorWindowInfo(windowID: 0, bounds: geometry, pid: axPid)
+    }
+
+    private static func windowMatch(pid: pid_t, options: CGWindowListOption) -> MirrorWindowInfo? {
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID)
                 as? [[String: Any]] else { return nil }
         for entry in list {
             guard let ownerPID = entry[kCGWindowOwnerPID as String] as? pid_t, ownerPID == pid,
@@ -72,15 +100,10 @@ public final class MirrorWindowBridge: @unchecked Sendable {
                 x: boundsDict["X"] ?? 0, y: boundsDict["Y"] ?? 0,
                 width: boundsDict["Width"] ?? 0, height: boundsDict["Height"] ?? 0
             )
-            // Ignore tiny windows (tooltips, the "connecting" toast).
-            if bounds.width < 100 || bounds.height < 100 { continue }
+            guard isUsableWindowSize(width: bounds.width, height: bounds.height) else { continue }
             return MirrorWindowInfo(windowID: windowNumber, bounds: bounds, pid: pid)
         }
-        // Fall back to AX geometry when CGWindowList has no match (e.g. the
-        // window sits on another Space, which optionOnScreenOnly excludes).
-        guard let (element, axPid) = mainWindowElement(),
-              let geometry = Self.axGeometry(of: element) else { return nil }
-        return MirrorWindowInfo(windowID: 0, bounds: geometry, pid: axPid)
+        return nil
     }
 
     static func axGeometry(of element: AXUIElement) -> CGRect? {
@@ -124,6 +147,7 @@ public final class MirrorWindowBridge: @unchecked Sendable {
     /// matched case-insensitively (includes common localized variants).
     static let dismissButtonTitles: Set<String> = [
         "ok", "resume", "reprendre", "continuer", "réessayer", "reessayer", "retry",
+        "connect", "connecter", "se connecter",  // "iPhone in Use" overlay (observed live 2026-08-13)
     ]
 
     /// Finds the paused-overlay dismiss button (e.g. "Resume"/"OK") and
@@ -230,21 +254,68 @@ public final class MirrorWindowBridge: @unchecked Sendable {
         return false
     }
 
-    /// Brings iPhone Mirroring to the front. No-op when already active —
-    /// re-activating an active app disturbs event routing and drops the next
-    /// click. `NSRunningApplication.activate()` cannot switch macOS Spaces,
-    /// so when it fails to take effect we fall back to AppleScript System
-    /// Events (which needs the Automation permission).
+    /// PID of the application that currently has focus, queried live from
+    /// the window server: CGWindowList returns windows front-to-back, and
+    /// the owner of the frontmost normal-layer window is the active app.
     ///
-    /// Returns true when focus changed (caller should re-query window bounds
-    /// and wait `activationSettleUs`).
+    /// Two tempting alternatives are BROKEN in a stdio MCP server:
+    /// - `NSRunningApplication.isActive` is refreshed by the main run loop,
+    ///   which this process never pumps — it reports stale values forever
+    ///   (same failure class as the NSWorkspace snapshot freeze above).
+    /// - The system-wide AX focused-application query returns
+    ///   kAXErrorCannotComplete (-25204) from a run-loop-less agent process
+    ///   — while working fine in test runners, which DO pump a run loop, so
+    ///   only a live check in the real server context catches it.
+    public func frontmostPID() -> pid_t? {
+        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+                as? [[String: Any]] else { return nil }
+        for entry in list {
+            guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
+                  let pid = entry[kCGWindowOwnerPID as String] as? pid_t else { continue }
+            return pid
+        }
+        return nil
+    }
+
+    /// Brings iPhone Mirroring to the front and confirms it actually took
+    /// focus. No-op when the live focus check says it is already frontmost —
+    /// re-activating an active app disturbs event routing and drops the next
+    /// click. `NSRunningApplication.activate()` is subject to cooperative
+    /// activation and cannot switch macOS Spaces, so when it does not take
+    /// effect we fall back to AppleScript System Events (which needs the
+    /// Automation permission).
+    ///
+    /// Returns true when the app is frontmost afterwards (or focus cannot be
+    /// queried); false means every activation path failed — input posted in
+    /// that state is silently dropped, so callers must surface an error
+    /// rather than proceed.
     @discardableResult
     public func activate() -> Bool {
         guard let app = findProcess() else { return false }
-        if app.isActive { return false }
+        let pid = app.processIdentifier
+        if frontmostPID() == pid { return true }
         app.activate()
         usleep(Self.activationSettleUs)
-        if findProcess()?.isActive == true { return true }
+        if frontmostPID() == pid {
+            usleep(Self.unhideSettleUs)
+            return true
+        }
+        // Cooperative activation routinely DENIES a background process's
+        // NSRunningApplication.activate(). Routing the request through
+        // Launch Services — the same path mirror_launch uses — is honored
+        // from this server's context.
+        let semaphore = DispatchSemaphore(value: 0)
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(
+            at: URL(fileURLWithPath: Self.appPath), configuration: configuration
+        ) { _, _ in semaphore.signal() }
+        _ = semaphore.wait(timeout: .now() + 3)
+        usleep(Self.activationSettleUs)
+        if frontmostPID() == pid {
+            usleep(Self.unhideSettleUs)
+            return true
+        }
         Self.runAppleScriptOnMainThread("""
             tell application "System Events"
                 tell process "\(Self.processName)"
@@ -253,22 +324,51 @@ public final class MirrorWindowBridge: @unchecked Sendable {
             end tell
             """)
         usleep(Self.activationSettleUs)
-        return true
+        guard let front = frontmostPID() else {
+            // Focus query unavailable: assume the fallbacks worked rather
+            // than fail input that may well deliver.
+            return true
+        }
+        if front == pid {
+            usleep(Self.unhideSettleUs)
+            return true
+        }
+        return false
     }
 
     /// NSAppleScript is documented main-thread-only; the caller usually runs
     /// on an actor's cooperative thread, so hop to the main queue for the
     /// execution itself (the surrounding sleeps stay off the main thread).
-    static func runAppleScriptOnMainThread(_ source: String) {
-        let work = {
+    /// Returns false when the script errored (e.g. the Automation
+    /// permission for System Events is missing).
+    @discardableResult
+    static func runAppleScriptOnMainThread(_ source: String) -> Bool {
+        let work: () -> Bool = {
             var errorInfo: NSDictionary?
             NSAppleScript(source: source)?.executeAndReturnError(&errorInfo)
+            return errorInfo == nil
         }
         if Thread.isMainThread {
-            work()
-        } else {
-            DispatchQueue.main.sync(execute: work)
+            return work()
         }
+        return DispatchQueue.main.sync(execute: work)
+    }
+
+    /// Clicks via System Events at a screen position. Unlike posted CGEvent
+    /// clicks — which iPhone Mirroring resolves at its INTERNAL pointer
+    /// position, stale until the pointer has fully re-engaged — System
+    /// Events clicks are position-authoritative: every one observed live
+    /// (2026-08-12/13) landed exactly where aimed, regardless of pointer
+    /// engagement state. Requires the app to be frontmost (System Events
+    /// clicks the frontmost process's UI at that point) and the Automation
+    /// permission; returns false when the script fails so callers can fall
+    /// back to a CGEvent click.
+    public static func systemEventsClick(at point: CGPoint) -> Bool {
+        runAppleScriptOnMainThread(systemEventsClickSource(at: point))
+    }
+
+    static func systemEventsClickSource(at point: CGPoint) -> String {
+        "tell application \"System Events\" to click at {\(Int(point.x.rounded())), \(Int(point.y.rounded()))}"
     }
 
     /// Launches the iPhone Mirroring app if needed and waits for a window.
