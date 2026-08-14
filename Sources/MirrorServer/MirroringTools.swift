@@ -12,9 +12,11 @@ enum MirroringTools {
             "y": ["type": "number", "description": "Y pixel coordinate in the last screenshot"],
         ]
         let swipeProperties: [String: Value] = [
-            "from_x": ["type": "number"], "from_y": ["type": "number"],
-            "to_x": ["type": "number"], "to_y": ["type": "number"],
-            "duration_ms": ["type": "number", "description": "Gesture duration in ms"],
+            "from_x": ["type": "number", "description": "X pixel coordinate the gesture starts at, in the last screenshot"],
+            "from_y": ["type": "number", "description": "Y pixel coordinate the gesture starts at, in the last screenshot"],
+            "to_x": ["type": "number", "description": "X pixel coordinate the gesture ends at"],
+            "to_y": ["type": "number", "description": "Y pixel coordinate the gesture ends at"],
+            "duration_ms": ["type": "number", "description": "Gesture duration in ms. Shorter is faster: a swipe under ~300ms flicks with momentum, longer drags the content directly"],
         ]
 
         return [
@@ -102,7 +104,7 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "x": ["type": "number"], "y": ["type": "number"],
+                        "x": ["type": "number", "description": "X pixel coordinate in the last screenshot"], "y": ["type": "number", "description": "Y pixel coordinate in the last screenshot"],
                         "duration_ms": ["type": "number", "description": "Hold duration, default 600"],
                     ],
                     "required": ["x", "y"],
@@ -144,7 +146,7 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "text": ["type": "string"],
+                        "text": ["type": "string", "description": "The text to type"],
                         "submit": ["type": "boolean", "description": "Press Return after typing (default false)"],
                     ],
                     "required": ["text"],
@@ -215,7 +217,7 @@ enum MirroringTools {
                 description: "Open a URL on the iPhone: launches Safari via Spotlight, focuses the address bar (⌘L), types the URL, presses Return.",
                 schema: [
                     "type": "object",
-                    "properties": ["url": ["type": "string"]],
+                    "properties": ["url": ["type": "string", "description": "URL to open in Safari on the iPhone, including https://"]],
                     "required": ["url"],
                 ]
             ) { args in
@@ -251,7 +253,7 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "query": ["type": "string"],
+                        "query": ["type": "string", "description": "The on-screen text to look for"],
                         "exact": ["type": "boolean", "description": "Only exact (case-insensitive) matches"],
                     ],
                     "required": ["query"],
@@ -268,9 +270,9 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "query": ["type": "string"],
+                        "query": ["type": "string", "description": "The on-screen text to find and tap"],
                         "index": ["type": "number", "description": "Which match to tap (0-based, default 0)"],
-                        "exact": ["type": "boolean"],
+                        "exact": ["type": "boolean", "description": "Require an exact, full-string match instead of a case-insensitive substring match (default false)"],
                         "expect": ["type": "string", "description": "Text that must appear on screen after the tap (verified via OCR polling)"],
                         "expect_timeout_seconds": ["type": "number", "description": "How long to wait for expect (default 10)"],
                     ],
@@ -294,9 +296,9 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "text": ["type": "string"],
+                        "text": ["type": "string", "description": "The text to wait for on screen"],
                         "timeout_seconds": ["type": "number", "description": "Default 15, max 120"],
-                        "exact": ["type": "boolean"],
+                        "exact": ["type": "boolean", "description": "Require an exact, full-string match instead of a case-insensitive substring match (default false)"],
                     ],
                     "required": ["text"],
                 ]
@@ -314,7 +316,7 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "text": ["type": "string"],
+                        "text": ["type": "string", "description": "The text to scroll until it becomes visible"],
                         "direction": ["type": "string", "description": "up (default), down, left, right"],
                         "max_swipes": ["type": "number", "description": "Default 8, max 20"],
                     ],
@@ -352,7 +354,7 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "text": ["type": "string"],
+                        "text": ["type": "string", "description": "The text to type"],
                         "submit": ["type": "boolean", "description": "Press Return after pasting (default false)"],
                     ],
                     "required": ["text"],
@@ -553,11 +555,12 @@ enum MirroringTools {
                     "properties": [
                         "steps": [
                             "type": "array",
+                            "description": "Input steps to run in order, e.g. [{\"tool\": \"tap_text\", \"args\": {\"query\": \"Settings\"}}, {\"tool\": \"sleep_ms\", \"args\": {\"ms\": 500}}]. Max 30",
                             "items": [
                                 "type": "object",
                                 "properties": [
-                                    "tool": ["type": "string"],
-                                    "args": ["type": "object"],
+                                    "tool": ["type": "string", "description": "Name of the input tool to run for this step"],
+                                    "args": ["type": "object", "description": "Arguments for that tool, identical to calling it standalone"],
                                 ],
                                 "required": ["tool"],
                             ],

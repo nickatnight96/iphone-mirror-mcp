@@ -68,6 +68,30 @@ final class ToolCatalogTests: XCTestCase {
         }
     }
 
+    /// Every parameter needs a description, not just every tool. Schema
+    /// descriptions are the only documentation a model gets at call time, and
+    /// weaker models lean on them hardest — a bare `{"type": "number"}` is how
+    /// you get coordinates guessed instead of read off a screenshot.
+    func testEveryParameterHasNonEmptyDescription() throws {
+        var undescribed: [String] = []
+        for registered in allTools() {
+            guard case .object(let schema) = registered.tool.inputSchema,
+                  case .object(let properties)? = schema["properties"] else { continue }
+            for (parameter, specification) in properties {
+                guard case .object(let fields) = specification else {
+                    undescribed.append("\(registered.tool.name).\(parameter) (not an object)")
+                    continue
+                }
+                let description = fields["description"]?.stringValue ?? ""
+                if description.isEmpty {
+                    undescribed.append("\(registered.tool.name).\(parameter)")
+                }
+            }
+        }
+        XCTAssertTrue(undescribed.isEmpty,
+                      "parameters missing a description: \(undescribed.sorted().joined(separator: ", "))")
+    }
+
     func testSchemasSerializeToJSON() throws {
         for registered in allTools() {
             let data = try JSONEncoder().encode(registered.tool.inputSchema)
