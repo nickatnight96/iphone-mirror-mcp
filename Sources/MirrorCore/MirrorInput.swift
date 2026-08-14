@@ -5,10 +5,10 @@ import Foundation
 ///
 /// Everything posts at `.cghidEventTap`: iPhone Mirroring ignores events
 /// posted to its PID — it requires HID-level posting, with the app frontmost.
-/// Gesture mechanics (scroll phases, momentum, flagsChanged modifiers) follow
-/// the behavior the mirroir-mcp project reverse-engineered from real trackpad
-/// traces; bare scroll events or key events with only flag bits set are
-/// silently ignored by the mirroring session.
+/// Gesture mechanics (scroll phases, momentum, flagsChanged modifiers) match
+/// what a physical trackpad emits: the session silently ignores bare scroll
+/// events, and key events carrying only flag bits, so synthesized gestures
+/// must reproduce the full phased event shape.
 public enum MirrorInput {
     // Timing (microseconds).
     static let clickHoldUs: UInt32 = 60_000

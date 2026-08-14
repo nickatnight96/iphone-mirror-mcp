@@ -10,7 +10,7 @@ enum XcodeToolCatalog {
     static func all() -> [RegisteredTool] {
         let buildProperties: [String: Value] = [
             "project_path": ["type": "string", "description": "Path to a .xcodeproj, .xcworkspace, or a package/project directory. Omit to use the current directory."],
-            "scheme": ["type": "string"],
+            "scheme": ["type": "string", "description": "Xcode scheme to build. Run xcode_list to see the available schemes"],
             "configuration": ["type": "string", "description": "Debug (default) or Release"],
             "destination": ["type": "string", "description": "xcodebuild -destination string, e.g. \"platform=iOS Simulator,name=iPhone 17 Pro\" or \"platform=iOS,id=<udid>\""],
             "extra_args": ["type": "array", "items": ["type": "string"], "description": "Additional xcodebuild arguments"],
@@ -109,7 +109,7 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "bundle_id": ["type": "string"],
+                        "bundle_id": ["type": "string", "description": "App bundle identifier, e.g. com.example.MyApp"],
                         "device": ["type": "string", "description": "Device name or udid (default: first paired iPhone)"],
                         "terminate_existing": ["type": "boolean", "description": "Kill a running instance first (default true)"],
                         "console_seconds": ["type": "number", "description": "Capture stdout/stderr for N seconds (default 0 = don't attach; capped at 300)"],
@@ -132,7 +132,7 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "scheme": ["type": "string"],
+                        "scheme": ["type": "string", "description": "Xcode scheme to build. Run xcode_list to see the available schemes"],
                         "project_path": ["type": "string", "description": "Path to .xcodeproj/.xcworkspace or project directory (default: current directory)"],
                         "configuration": ["type": "string", "description": "Default Debug"],
                         "device": ["type": "string", "description": "Device name or udid (default: first paired iPhone)"],
@@ -161,7 +161,7 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "scheme": ["type": "string"],
+                        "scheme": ["type": "string", "description": "Xcode scheme to build. Run xcode_list to see the available schemes"],
                         "project_path": ["type": "string", "description": "Path to .xcodeproj/.xcworkspace or project directory (default: current directory)"],
                         "configuration": ["type": "string", "description": "Default Debug"],
                         "simulator": ["type": "string", "description": "Simulator name or udid (default: the booted one, else the first available iPhone)"],
@@ -250,7 +250,7 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "app_path": ["type": "string"],
+                        "app_path": ["type": "string", "description": "Path to the built .app bundle"],
                         "simulator": ["type": "string", "description": "Name or udid (default: booted)"],
                     ],
                     "required": ["app_path"],
@@ -267,7 +267,7 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "bundle_id": ["type": "string"],
+                        "bundle_id": ["type": "string", "description": "App bundle identifier, e.g. com.example.MyApp"],
                         "simulator": ["type": "string", "description": "Name or udid (default: booted)"],
                         "console_seconds": ["type": "number", "description": "Capture output for N seconds (default 0; capped at 300)"],
                     ],
@@ -298,8 +298,8 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "bundle_id": ["type": "string"],
-                        "simulator": ["type": "string"],
+                        "bundle_id": ["type": "string", "description": "App bundle identifier, e.g. com.example.MyApp"],
+                        "simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"],
                     ],
                     "required": ["bundle_id"],
                 ]
@@ -314,7 +314,7 @@ enum XcodeToolCatalog {
                 description: "Screenshot a simulator's screen (default: the booted one). Note: simulator coordinates are separate from the iPhone-mirroring coordinate space.",
                 schema: [
                     "type": "object",
-                    "properties": ["simulator": ["type": "string"]],
+                    "properties": ["simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"]],
                 ]
             ) { args in
                 let (udid, name) = try await XcodeTools.resolveSimulator(try args.optionalString("simulator"))
@@ -333,8 +333,8 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "url": ["type": "string"],
-                        "simulator": ["type": "string"],
+                        "url": ["type": "string", "description": "URL to open, including scheme (https://… or a custom deep link)"],
+                        "simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"],
                     ],
                     "required": ["url"],
                 ]
@@ -350,7 +350,7 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "bundle_id": ["type": "string"],
+                        "bundle_id": ["type": "string", "description": "App bundle identifier, e.g. com.example.MyApp"],
                         "payload": ["type": "string", "description": "APNs payload JSON (must contain an aps key)"],
                         "simulator": ["type": "string", "description": "Name or udid (default: booted)"],
                     ],
@@ -378,7 +378,7 @@ enum XcodeToolCatalog {
                     "type": "object",
                     "properties": [
                         "action": ["type": "string", "description": "grant, revoke, or reset"],
-                        "service": ["type": "string"],
+                        "service": ["type": "string", "description": "Privacy service to change, e.g. photos, camera, microphone, location, contacts, or all"],
                         "bundle_id": ["type": "string", "description": "Required for grant/revoke; optional for reset"],
                         "simulator": ["type": "string", "description": "Name or udid (default: booted)"],
                     ],
@@ -403,7 +403,7 @@ enum XcodeToolCatalog {
                     "type": "object",
                     "properties": [
                         "appearance": ["type": "string", "description": "light or dark"],
-                        "simulator": ["type": "string"],
+                        "simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"],
                     ],
                     "required": ["appearance"],
                 ]
@@ -423,10 +423,10 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "latitude": ["type": "number"],
-                        "longitude": ["type": "number"],
+                        "latitude": ["type": "number", "description": "Latitude in decimal degrees"],
+                        "longitude": ["type": "number", "description": "Longitude in decimal degrees"],
                         "clear": ["type": "boolean", "description": "Clear the simulated location instead"],
-                        "simulator": ["type": "string"],
+                        "simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"],
                     ],
                 ]
             ) { args in
@@ -455,7 +455,7 @@ enum XcodeToolCatalog {
                         "wifi_bars": ["type": "number", "description": "0-3"],
                         "cellular_bars": ["type": "number", "description": "0-4"],
                         "clear": ["type": "boolean", "description": "Remove all overrides"],
-                        "simulator": ["type": "string"],
+                        "simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"],
                     ],
                 ]
             ) { args in
@@ -484,7 +484,7 @@ enum XcodeToolCatalog {
                     "type": "object",
                     "properties": [
                         "paths": ["type": "array", "items": ["type": "string"], "description": "Image/video file paths"],
-                        "simulator": ["type": "string"],
+                        "simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"],
                     ],
                     "required": ["paths"],
                 ]
@@ -505,8 +505,8 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "bundle_id": ["type": "string"],
-                        "simulator": ["type": "string"],
+                        "bundle_id": ["type": "string", "description": "App bundle identifier, e.g. com.example.MyApp"],
+                        "simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"],
                     ],
                     "required": ["bundle_id"],
                 ]
@@ -538,7 +538,7 @@ enum XcodeToolCatalog {
                 description: "List the apps installed on a simulator (default: the booted one) with bundle ids.",
                 schema: [
                     "type": "object",
-                    "properties": ["simulator": ["type": "string"]],
+                    "properties": ["simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"]],
                 ]
             ) { args in
                 let (udid, name) = try await XcodeTools.resolveSimulator(try args.optionalString("simulator"))
@@ -579,7 +579,7 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": [
-                        "bundle_id": ["type": "string"],
+                        "bundle_id": ["type": "string", "description": "App bundle identifier, e.g. com.example.MyApp"],
                         "device": ["type": "string", "description": "Device name or udid (default: first paired iPhone)"],
                     ],
                     "required": ["bundle_id"],

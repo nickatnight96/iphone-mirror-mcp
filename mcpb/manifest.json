@@ -1,0 +1,37 @@
+{
+  "manifest_version": "0.3",
+  "name": "iphone-mirror-mcp",
+  "display_name": "iPhone Mirror",
+  "version": "__VERSION__",
+  "description": "Drive a real iPhone through the macOS iPhone Mirroring app, and run Xcode builds and tests on simulators and devices.",
+  "long_description": "Controls a physical iPhone through the built-in macOS iPhone Mirroring app — taps, swipes, typing, OCR screen reading, and template matching — with no jailbreak, nothing installed on the phone, and no XCUITest target. Also automates Xcode: build, test, install, and launch on simulators and paired devices, then operate the app on the mirrored screen and assert what the user actually sees.\n\nRequires macOS 15 or newer paired to an iPhone on iOS 18 or newer, and Accessibility plus Screen Recording permission granted to the app that launches the server. Run the bundled binary with the `doctor` argument to verify the setup.",
+  "author": {
+    "name": "Nick Muer",
+    "url": "https://github.com/nickatnight96"
+  },
+  "homepage": "https://github.com/nickatnight96/iphone-mirror-mcp",
+  "documentation": "https://github.com/nickatnight96/iphone-mirror-mcp/blob/main/docs/getting-started.md",
+  "support": "https://github.com/nickatnight96/iphone-mirror-mcp/issues",
+  "license": "MIT",
+  "keywords": [
+    "ios",
+    "iphone",
+    "automation",
+    "xcode",
+    "testing",
+    "simulator",
+    "ocr",
+    "mobile"
+  ],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/iphone-mirror-mcp",
+    "mcp_config": {
+      "command": "${__dirname}/server/iphone-mirror-mcp",
+      "args": []
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin"]
+  }
+}

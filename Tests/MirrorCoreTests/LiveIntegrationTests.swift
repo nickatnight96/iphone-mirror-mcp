@@ -1,4 +1,5 @@
 import CoreGraphics
+import ImageIO
 import XCTest
 @testable import MirrorCore
 
@@ -89,5 +90,106 @@ final class LiveIntegrationTests: XCTestCase {
             MirrorInput.cursorIsPlaced(current: landed, target: target,
                                        tolerance: MirrorInput.cursorPlacementTolerance),
             "cursor at \(landed), expected within \(MirrorInput.cursorPlacementTolerance) of \(target)")
+    }
+
+    // MARK: - Swipe gesture (exercises SwipePlan end to end)
+
+    /// Skips unless a live, ACTIVE mirroring session is available. A paused
+    /// session captures a static overlay, so a swipe would "fail" for reasons
+    /// that have nothing to do with the gesture.
+    private func requireActiveSession() async throws -> MirrorSession {
+        try requireLive()
+        try XCTSkipUnless(PermissionStatus.current().accessibility, "Accessibility permission not granted")
+        try XCTSkipUnless(CGPreflightScreenCaptureAccess(), "Screen Recording permission not granted")
+        let session = MirrorSession()
+        let status = await session.status()
+        try XCTSkipUnless(status.state == .connected,
+                          "mirroring session is \(status.state) — lock the iPhone and click Resume")
+        return session
+    }
+
+    /// Screenshots come back as PNG bytes; decode so frames can be compared
+    /// perceptually. Byte equality would be too strict — a status-bar clock
+    /// tick alone would register as "the screen scrolled".
+    private func decode(_ shot: MirrorSession.Screenshot) throws -> CGImage {
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(shot.pngData as CFData, nil),
+                                   "screenshot PNG could not be decoded")
+        return try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    }
+
+    /// The planner's math is unit-tested, but nothing there proves the phone
+    /// actually scrolls: the deltas must survive quantization, the phase
+    /// script, CGEvent posting, and the mirroring app's gesture recognizer.
+    /// Settings is used because it is present on every iPhone and its root
+    /// list is always taller than the screen.
+    func testFlickScrollsRealContent() async throws {
+        let session = try await requireActiveSession()
+        try await session.launchApp(named: "Settings")
+        _ = try? await session.waitForText("Settings", timeoutSeconds: 8, exact: false)
+
+        let before = try decode(try await session.screenshot())
+        let width = Double(before.width)
+        let height = Double(before.height)
+
+        // Fast upward flick through the middle of the list.
+        try await session.swipe(fromX: width / 2, fromY: height * 0.75,
+                                toX: width / 2, toY: height * 0.25, durationMs: 180)
+        try await Task.sleep(for: .milliseconds(1200))  // let inertia settle
+
+        let after = try decode(try await session.screenshot())
+        let difference = ImageUtil.meanAbsDifference(before, after)
+        XCTAssertGreaterThan(difference, 0.01,
+                             "a flick left the screen unchanged — the gesture never reached the phone")
+    }
+
+    /// Slow swipes take the no-momentum path through the planner, which is a
+    /// separate branch from the flick above.
+    func testSlowDragScrollsRealContent() async throws {
+        let session = try await requireActiveSession()
+        try await session.launchApp(named: "Settings")
+        _ = try? await session.waitForText("Settings", timeoutSeconds: 8, exact: false)
+
+        let before = try decode(try await session.screenshot())
+        let width = Double(before.width)
+        let height = Double(before.height)
+
+        // 0.35 of the screen over 1.5s stays under the flick threshold.
+        try await session.swipe(fromX: width / 2, fromY: height * 0.7,
+                                toX: width / 2, toY: height * 0.35, durationMs: 1500)
+        try await Task.sleep(for: .milliseconds(600))
+
+        let after = try decode(try await session.screenshot())
+        let difference = ImageUtil.meanAbsDifference(before, after)
+        XCTAssertGreaterThan(difference, 0.01,
+                             "a slow drag left the screen unchanged")
+    }
+
+    /// A swipe must leave the session usable. The phase script exists because
+    /// a truncated gesture wedges SpringBoard: video keeps streaming but all
+    /// further input is dropped. Posting a gesture and then asserting a
+    /// SUBSEQUENT gesture still registers is the only way to catch that.
+    func testSessionStillAcceptsInputAfterASwipe() async throws {
+        let session = try await requireActiveSession()
+        try await session.launchApp(named: "Settings")
+        _ = try? await session.waitForText("Settings", timeoutSeconds: 8, exact: false)
+
+        let shot = try decode(try await session.screenshot())
+        let width = Double(shot.width)
+        let height = Double(shot.height)
+
+        try await session.swipe(fromX: width / 2, fromY: height * 0.75,
+                                toX: width / 2, toY: height * 0.25, durationMs: 150)
+        try await Task.sleep(for: .milliseconds(1200))
+
+        // If SpringBoard wedged, this second gesture changes nothing.
+        let before = try decode(try await session.screenshot())
+        try await session.swipe(fromX: width / 2, fromY: height * 0.3,
+                                toX: width / 2, toY: height * 0.7, durationMs: 400)
+        try await Task.sleep(for: .milliseconds(800))
+        let after = try decode(try await session.screenshot())
+
+        let difference = ImageUtil.meanAbsDifference(before, after)
+        XCTAssertGreaterThan(difference, 0.01,
+                             "input stopped registering after a swipe — the session may be wedged")
     }
 }

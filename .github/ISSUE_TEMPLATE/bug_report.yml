@@ -1,0 +1,66 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing. This project automates an undocumented Apple
+        surface, so the `doctor` output below is genuinely the most useful
+        thing you can give us — it tests the whole chain end to end.
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: doctor output
+      description: Output of `iphone-mirror-mcp doctor`
+      render: text
+      placeholder: |
+        == iphone-mirror doctor ==
+        [PASS] Accessibility permission
+        ...
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `sw_vers -productVersion` and `iphone-mirror-mcp --version`
+      placeholder: "macOS 15.6, iphone-mirror-mcp 1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: "Claude Code / Claude Desktop / Cursor / VS Code / other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The tool call you made, what came back, and what you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Settings on the phone
+        2. Call swipe with ...
+        3. Observe ...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: The iPhone was locked and nearby, and `status` reported the session connected
+        - label: I restarted the host app after granting permissions
+        - label: I checked [troubleshooting.md](../../blob/main/docs/troubleshooting.md)

@@ -21,8 +21,8 @@ public struct MirrorWindowInfo: Sendable {
 
 /// Bridge to the macOS iPhone Mirroring app (`com.apple.ScreenContinuity`).
 ///
-/// Two hard-won facts shape this type (both observed by the mirroir-mcp
-/// project and verified against its sources):
+/// Two hard-won facts about the host platform shape this type, both verified
+/// against the live app:
 /// - The mirroring window does not appear in `AXWindows`; it is only
 ///   reachable via `AXMainWindow`.
 /// - `NSWorkspace`'s runningApplications snapshot freezes in a stdio server

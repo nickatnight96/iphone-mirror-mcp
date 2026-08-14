@@ -28,37 +28,86 @@ public struct ScrollStep: Equatable, Sendable {
     }
 }
 
-/// Computes the frame-by-frame scroll deltas for a swipe gesture.
+/// Plans the frame-by-frame deltas of a synthesized trackpad swipe.
 ///
-/// iPhone Mirroring ignores bare scroll-wheel events; it only honors
-/// trackpad-style continuous scrolls with gesture phases. The shape here
-/// mirrors a physical trackpad flick (technique learned from the mirroir-mcp
-/// project's captured trackpad traces): drag frames ramp linearly to a peak
-/// velocity while the finger is down, and fast flicks continue with a
-/// geometrically decaying momentum tail after the lift, which iOS reads as a
-/// native flick so paging surfaces snap correctly. Slow swipes are deliberate
-/// drag-scrolls: uniform frames, no momentum.
+/// iPhone Mirroring ignores bare scroll-wheel events; it honors only
+/// trackpad-style continuous scrolls carrying gesture phases. This planner
+/// produces the delta schedule; `script(for:)` wraps it in those phases.
+///
+/// ## Model
+///
+/// The gesture is a **moving finger sampled at the event frame rate**: a
+/// position curve is evaluated at each frame boundary and the emitted deltas
+/// are the *differences between successive samples*. Conservation of the
+/// requested displacement is therefore structural — the differences of a
+/// rounded position curve telescope to exactly its endpoint — rather than
+/// something a reconciliation pass has to restore.
+///
+/// Two regimes, separated by whether the finger is still travelling when it
+/// leaves the glass:
+///
+/// - **Drag** (slow) — the finger moves at a steady speed and has stopped by
+///   the lift, so no inertia follows. Position is linear in time.
+/// - **Flick** (fast) — the finger accelerates and is still moving at the
+///   lift, so iOS carries the content on under exponential deceleration.
+///   Position is quadratic during contact, then follows the decay integral.
+///
+/// For a flick, the split between contact travel and inertial travel is *not*
+/// a tuned ratio. It falls out of integrating the velocity profile: contact
+/// contributes `T/2` and inertia contributes the decay time constant `τ`, so
+/// contact takes `T/2 / (T/2 + τ)` of the distance. Both phases are sampled
+/// from one continuous curve, which keeps velocity continuous across the lift
+/// — a discontinuity there reads as two gestures and the content jerks.
 public enum SwipePlan {
-    /// Unit note: all distances here are SCREEN POINTS (the window coordinate
-    /// space CGEvents use), not retina pixels — the amplification and flick
-    /// threshold were tuned against point-space gestures, matching the
-    /// mirroir-mcp reference. MirrorInput converts tool pixel coordinates to
-    /// points before planning a swipe.
+
+    // MARK: - Constants
+
+    /// Wheel units emitted per screen point of requested travel. Phased
+    /// (continuous) scroll events displace content less per unit than legacy
+    /// wheel events; measured against the live mirroring window.
     ///
-    /// Continuous-gesture events have smaller per-unit displacement than
-    /// legacy wheel events; amplify to match physical trackpad distance.
-    public static let scrollAmplification = 3.0
-    /// Speed (points/second, pre-amplification) at which a swipe becomes a
-    /// flick and receives a momentum tail.
-    public static let flickVelocityThreshold = 500.0
-    /// Per-frame decay of the momentum tail.
-    public static let momentumDecayPerFrame = 0.94
-    /// Momentum tail cap (~1.5s at 60fps); zero frames are trimmed anyway.
-    public static let momentumMaxFrames = 90
-    /// Frame pacing for the drag phase (~60fps).
+    /// Unit note: distances entering `plan` are SCREEN POINTS — the window
+    /// coordinate space CGEvents use — not retina pixels. `MirrorInput`
+    /// converts tool pixel coordinates to points before planning.
+    public static let wheelUnitsPerPoint = 3.0
+
+    /// Mean speed (points/second) at or above which the finger is treated as
+    /// still moving at the lift, earning an inertial tail. Below it the
+    /// gesture is a deliberate drag-scroll.
+    public static let flickMeanVelocity = 500.0
+
+    /// Fraction of velocity retained per millisecond of inertial travel.
+    /// Parameterized per *millisecond* — the same way Apple parameterizes
+    /// scroll-view deceleration — so the tail's shape in real time is
+    /// unchanged if frame pacing ever changes.
+    public static let velocityRetainedPerMs = 0.996
+
+    /// Event frame period (~60fps).
     public static let frameMs = 16
-    /// Minimum drag frames regardless of duration.
+
+    /// Contact frames emitted even for an instantaneous gesture.
     public static let minimumDragFrames = 5
+
+    /// Hard bound on inertial frames. The tail normally ends well before
+    /// this, when the remaining travel stops rounding to a whole wheel unit.
+    public static let momentumMaxFrames = 180
+
+    /// Inertial time constant τ (milliseconds): the decay integral
+    /// `∫₀^∞ r^u du = -1/ln r`. The distance a flick coasts is the lift
+    /// velocity times this.
+    static var inertialTimeConstantMs: Double {
+        -1.0 / Foundation.log(velocityRetainedPerMs)
+    }
+
+    // MARK: - Phase field values (kCGScrollPhase / kCGMomentumScrollPhase)
+
+    public static let phaseMayBegin: Int64 = 128
+    public static let phaseBegan: Int64 = 1
+    public static let phaseChanged: Int64 = 2
+    public static let phaseEnded: Int64 = 4
+    public static let momentumBegin: Int64 = 1
+    public static let momentumContinue: Int64 = 2
+    public static let momentumEnd: Int64 = 3
 
     public struct Plan: Equatable, Sendable {
         /// Frames posted while the finger is down (scroll phase Began/Changed).
@@ -67,14 +116,136 @@ public enum SwipePlan {
         public let momentum: [ScrollFrame]
     }
 
-    // Scroll phase values observed in real trackpad traces.
-    public static let phaseMayBegin: Int64 = 128
-    public static let phaseBegan: Int64 = 1
-    public static let phaseChanged: Int64 = 2
-    public static let phaseEnded: Int64 = 4
-    public static let momentumBegin: Int64 = 1
-    public static let momentumContinue: Int64 = 2
-    public static let momentumEnd: Int64 = 3
+    // MARK: - Planning
+
+    /// Plans a swipe covering (`deltaX`, `deltaY`) points over `durationMs`.
+    /// Total displacement is conserved exactly across drag + momentum.
+    public static func plan(deltaX: Double, deltaY: Double, durationMs: Int) -> Plan {
+        let contactMs = Double(max(durationMs, 1))
+        let dragFrames = max(minimumDragFrames, durationMs / frameMs)
+
+        let totalHorizontal = clampToWheelRange(deltaX * wheelUnitsPerPoint)
+        let totalVertical = clampToWheelRange(deltaY * wheelUnitsPerPoint)
+
+        let distance = (deltaX * deltaX + deltaY * deltaY).squareRoot()
+        let meanVelocity = distance / (contactMs / 1000.0)
+
+        // Drag: steady speed, at rest by the lift. Progress is linear, so the
+        // curve is just the frame index over the frame count.
+        guard meanVelocity.isFinite, meanVelocity >= flickMeanVelocity else {
+            let progress = (1...dragFrames).map { Double($0) / Double(dragFrames) }
+            return Plan(
+                drag: quantize(progress: progress, horizontal: totalHorizontal, vertical: totalVertical),
+                momentum: []
+            )
+        }
+
+        // Flick: one continuous curve spanning contact and inertia.
+        //
+        //   contact travel  = v_peak · T/2          (velocity ramps 0 → v_peak)
+        //   inertial travel = v_peak · τ            (τ = -1/ln r)
+        //
+        // Normalizing total travel to 1 gives v_peak = 1/(T/2 + τ), hence:
+        let tau = inertialTimeConstantMs
+        let halfContact = contactMs / 2
+        let contactShare = halfContact / (halfContact + tau)
+        let inertialShare = 1 - contactShare
+
+        var progress: [Double] = []
+        progress.reserveCapacity(dragFrames + momentumMaxFrames)
+
+        // Contact: velocity ramps linearly, so position is quadratic in time.
+        for frame in 1...dragFrames {
+            let fraction = Double(frame) / Double(dragFrames)
+            progress.append(contactShare * fraction * fraction)
+        }
+
+        // Inertia: position follows the decay integral. The tail ENDS when a
+        // frame stops carrying a whole wheel unit — past that the decay is
+        // still mathematically alive but quantizes to a dribble of
+        // 1,0,1,0,0,1… units, which reads as stuttering rather than coasting.
+        // Solving `travel-per-frame == ½ unit` for the elapsed time gives the
+        // frame where that happens; see `inertialFrameCount`.
+        let inertialUnits = (Double(totalHorizontal) * Double(totalHorizontal)
+            + Double(totalVertical) * Double(totalVertical)).squareRoot() * inertialShare
+        let tailFrames = inertialFrameCount(inertialUnits: inertialUnits)
+
+        // Normalize by the decay actually consumed over that span so the
+        // curve lands exactly on 1 at the final frame. Without this the
+        // asymptote strands a fraction of the travel past the end and the
+        // quantizer emits it as a lone unit after a run of dead frames.
+        let consumed = 1 - Foundation.pow(velocityRetainedPerMs, Double(tailFrames * frameMs))
+        if tailFrames > 0, consumed > 0 {
+            for frame in 1...tailFrames {
+                let elapsedMs = Double(frame * frameMs)
+                let decayed = 1 - Foundation.pow(velocityRetainedPerMs, elapsedMs)
+                progress.append(contactShare + inertialShare * (decayed / consumed))
+            }
+        } else {
+            progress.append(1.0)
+        }
+
+        let frames = quantize(progress: progress, horizontal: totalHorizontal, vertical: totalVertical)
+        let drag = Array(frames[..<dragFrames])
+        var momentum = Array(frames[dragFrames...])
+        // Trim the dead tail: once travel no longer rounds to a whole wheel
+        // unit, further frames carry nothing.
+        while let last = momentum.last, last.isZero { momentum.removeLast() }
+        return Plan(drag: drag, momentum: momentum)
+    }
+
+    /// How many frames of inertia are worth emitting for a tail carrying
+    /// `inertialUnits` of travel.
+    ///
+    /// Travel in the frame at elapsed `u` is `inertialUnits · r^u · (1 - r^h)`.
+    /// Setting that to half a wheel unit — the point below which frames stop
+    /// rounding to anything — and solving for `u` gives the last frame that
+    /// still moves the content:
+    ///
+    ///     r^u = ½ / (inertialUnits · (1 - r^h))
+    ///     u   = ln(that) / ln(r)
+    ///
+    /// Clamped to the hard frame bound, and to zero for a flick too small to
+    /// coast at all.
+    static func inertialFrameCount(inertialUnits: Double) -> Int {
+        let perFrameAtLift = inertialUnits * (1 - Foundation.pow(velocityRetainedPerMs, Double(frameMs)))
+        guard perFrameAtLift.isFinite, perFrameAtLift > 0.5 else { return 0 }
+        let elapsedMs = Foundation.log(0.5 / perFrameAtLift) / Foundation.log(velocityRetainedPerMs)
+        guard elapsedMs.isFinite, elapsedMs > 0 else { return 0 }
+        return min(momentumMaxFrames, max(1, Int((elapsedMs / Double(frameMs)).rounded())))
+    }
+
+    /// Samples a cumulative progress curve into integer per-frame deltas.
+    ///
+    /// `progress` is the fraction of total travel completed at each frame
+    /// boundary, ending at 1. Each delta is the change in the *rounded*
+    /// position, so the deltas telescope to exactly the total and quantization
+    /// error never accumulates.
+    static func quantize(progress: [Double], horizontal: Int32, vertical: Int32) -> [ScrollFrame] {
+        var frames: [ScrollFrame] = []
+        frames.reserveCapacity(progress.count)
+        var placedH: Int32 = 0
+        var placedV: Int32 = 0
+        for fraction in progress {
+            let positionH = Int32((Double(horizontal) * fraction).rounded())
+            let positionV = Int32((Double(vertical) * fraction).rounded())
+            frames.append(ScrollFrame(vertical: positionV - placedV, horizontal: positionH - placedH))
+            placedH = positionH
+            placedV = positionV
+        }
+        return frames
+    }
+
+    /// Saturating Double→Int32. A plain conversion TRAPS on non-finite or
+    /// out-of-range values, and the travel distance is caller-controlled.
+    static func clampToWheelRange(_ value: Double) -> Int32 {
+        guard value.isFinite else { return 0 }
+        if value >= Double(Int32.max) { return Int32.max }
+        if value <= Double(Int32.min) { return Int32.min }
+        return Int32(value)
+    }
+
+    // MARK: - Phase script
 
     /// The complete, phase-correct event sequence for a plan:
     /// MayBegin prime → Began/Changed drag frames → zero-delta Ended lift →
@@ -108,75 +279,5 @@ public enum SwipePlan {
             steps.append(ScrollStep(frame: .zero, scrollPhase: 0, momentumPhase: momentumEnd))
         }
         return steps
-    }
-
-    /// Plans a swipe covering (`deltaX`, `deltaY`) pixels over `durationMs`.
-    /// Total displacement is conserved exactly across drag + momentum.
-    public static func plan(deltaX: Double, deltaY: Double, durationMs: Int) -> Plan {
-        let dragCount = max(minimumDragFrames, durationMs / frameMs)
-        let totalVertical = saturatedDelta(deltaY * scrollAmplification)
-        let totalHorizontal = saturatedDelta(deltaX * scrollAmplification)
-
-        let seconds = Double(max(durationMs, 1)) / 1000.0
-        let velocity = (deltaX * deltaX + deltaY * deltaY).squareRoot() / seconds
-
-        guard velocity >= flickVelocityThreshold else {
-            let uniform = [Double](repeating: 1.0, count: dragCount)
-            return Plan(
-                drag: frames(vertical: totalVertical, horizontal: totalHorizontal, weights: uniform),
-                momentum: []
-            )
-        }
-
-        // Flick: one weight sequence across both phases keeps velocity
-        // continuous at the lift and lets a single apportionment conserve
-        // the total exactly.
-        var weights: [Double] = []
-        weights.reserveCapacity(dragCount + momentumMaxFrames)
-        for frame in 1...dragCount { weights.append(Double(frame)) }
-        var momentumWeight = Double(dragCount) * momentumDecayPerFrame
-        for _ in 0..<momentumMaxFrames {
-            weights.append(momentumWeight)
-            momentumWeight *= momentumDecayPerFrame
-        }
-
-        let all = frames(vertical: totalVertical, horizontal: totalHorizontal, weights: weights)
-        let drag = Array(all[..<dragCount])
-        var momentum = Array(all[dragCount...])
-        while let last = momentum.last, last.isZero { momentum.removeLast() }
-        return Plan(drag: drag, momentum: momentum)
-    }
-
-    /// Saturating Double→Int32: a plain conversion traps on non-finite or
-    /// out-of-range values, and tool input is caller-controlled.
-    static func saturatedDelta(_ value: Double) -> Int32 {
-        guard value.isFinite else { return 0 }
-        if value >= Double(Int32.max) { return Int32.max }
-        if value <= Double(Int32.min) { return Int32.min }
-        return Int32(value)
-    }
-
-    private static func frames(vertical: Int32, horizontal: Int32, weights: [Double]) -> [ScrollFrame] {
-        let v = apportion(total: vertical, weights: weights)
-        let h = apportion(total: horizontal, weights: weights)
-        return zip(v, h).map { ScrollFrame(vertical: $0, horizontal: $1) }
-    }
-
-    /// Splits `total` into integer per-frame deltas proportional to `weights`;
-    /// cumulative rounding guarantees the deltas sum exactly to `total`.
-    static func apportion(total: Int32, weights: [Double]) -> [Int32] {
-        let weightSum = weights.reduce(0, +)
-        guard weightSum > 0 else { return [Int32](repeating: 0, count: weights.count) }
-        var deltas: [Int32] = []
-        deltas.reserveCapacity(weights.count)
-        var cumulative = 0.0
-        var allocated: Int32 = 0
-        for weight in weights {
-            cumulative += weight
-            let target = Int32((Double(total) * cumulative / weightSum).rounded())
-            deltas.append(target - allocated)
-            allocated = target
-        }
-        return deltas
     }
 }

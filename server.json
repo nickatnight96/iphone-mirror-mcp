@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.nickatnight96/iphone-mirror-mcp",
+  "title": "iPhone Mirror",
+  "description": "Drive a real iPhone through the macOS iPhone Mirroring app, and run Xcode builds and tests on simulators and devices.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/nickatnight96/iphone-mirror-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/nickatnight96/iphone-mirror-mcp",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/nickatnight96/iphone-mirror-mcp/releases/download/v1.0.0/iphone-mirror-mcp.mcpb",
+      "version": "1.0.0",
+      "fileSha256": "42db6479b32e3f4953f5c4bd33a54a0b2fb7151159d7697e7c9a9fb584546bfe",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
