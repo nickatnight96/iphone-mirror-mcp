@@ -6,7 +6,7 @@ import MirrorCore
 /// disconnects. All logging goes to stderr — stdout is the protocol channel.
 public enum MirrorMCPServer {
     public static let name = "iphone-mirror-mcp"
-    public static let version = "0.1.0"
+    public static let version = "1.0.0"
 
     static let instructions = """
         Drive a real iPhone through the built-in macOS iPhone Mirroring app, and run \

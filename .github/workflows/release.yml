@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v1.0.0)"
+        required: true
+
+permissions:
+  contents: write   # needed to create the release and upload the bundle
+
+jobs:
+  bundle:
+    name: Build and publish .mcpb
+    runs-on: macos-15
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Build the MCP bundle
+        run: scripts/build_mcpb.sh
+
+      # The tag and the version compiled into the binary must agree, or the
+      # registry would advertise a download whose contents claim otherwise.
+      - name: Verify the tag matches the built version
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          BUILT="v$(unzip -p dist/iphone-mirror-mcp.mcpb manifest.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
+          if [[ "$TAG" != "$BUILT" ]]; then
+            echo "tag $TAG does not match built version $BUILT"
+            exit 1
+          fi
+          echo "$TAG matches the bundle"
+
+      - name: Record the checksum
+        id: checksum
+        run: |
+          SHA="$(openssl dgst -sha256 dist/iphone-mirror-mcp.mcpb | awk '{print $2}')"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "### MCP bundle" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "sha256: $SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/iphone-mirror-mcp.mcpb
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            **From source** (recommended — no Gatekeeper prompts):
+
+            ```sh
+            git clone https://github.com/nickatnight96/iphone-mirror-mcp.git
+            cd iphone-mirror-mcp && ./install.sh
+            ```
+
+            **MCP bundle** — download `iphone-mirror-mcp.mcpb` below and open it
+            with a client that supports bundles. The binary is universal
+            (arm64 + x86_64) and ad-hoc signed but **not notarized**, so macOS
+            may quarantine it on download:
+
+            ```sh
+            xattr -d com.apple.quarantine ~/Downloads/iphone-mirror-mcp.mcpb
+            ```
+
+            `sha256: ${{ steps.checksum.outputs.sha256 }}`
+
+            After installing, verify your setup:
+
+            ```sh
+            iphone-mirror-mcp doctor
+            ```

@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: CI only ever reads the repo. A workflow cannot grant itself
+# more than this, so a malicious PR cannot use the token to write.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & test (macOS)
+    # iPhone Mirroring needs macOS 15+; the package declares .macOS(.v15).
+    runs-on: macos-15
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          swift --version
+          xcodebuild -version
+
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Build
+        run: swift build -v
+
+      # The live suite is skipped here by design: it needs a paired iPhone,
+      # an active mirroring session, and TCC grants that a CI runner has no
+      # way to provide. MIRROR_MCP_LIVE is deliberately left unset.
+      - name: Test
+        run: swift test
+
+      - name: Verify the CLI answers
+        run: |
+          BINARY="$(swift build --show-bin-path)/iphone-mirror-mcp"
+          "$BINARY" --version
+          "$BINARY" --help > /dev/null
+          if "$BINARY" --not-a-real-flag > /dev/null 2>&1; then
+            echo "an unknown flag exited 0; it must be rejected"
+            exit 1
+          fi
+
+      # docs/tools.md is generated from the server's own tools/list output.
+      # Failing here means a tool changed without the reference being
+      # regenerated, i.e. a tool would ship undocumented.
+      - name: Tool reference is up to date
+        run: python3 scripts/generate_tool_docs.py --check
+
+      # Proves a stranger's `swift build -c release` works, which is exactly
+      # what install.sh runs on their machine.
+      - name: Release build
+        run: swift build -c release
+
+  shellcheck:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck install.sh scripts/*.sh
