@@ -26,10 +26,27 @@ VERSION="$(grep -o 'version = "[^"]*"' Sources/MirrorServer/MirrorMCPServer.swif
 echo "==> Version $VERSION"
 
 # A universal binary so the bundle runs on both Apple silicon and Intel Macs.
+#
+# Built one architecture at a time into separate scratch paths, then merged
+# with lipo. SwiftPM's own multi-arch mode (`--arch arm64 --arch x86_64`)
+# routes through the Xcode build system and intermittently fails there with
+# "Unexpected duplicate tasks" / "missing target configuration" — it succeeded
+# locally off a warm build directory and failed on a clean CI runner. Separate
+# scratch paths cannot collide, so this path is deterministic.
 echo "==> Building universal binary (arm64 + x86_64)"
-swift build -c release --arch arm64 --arch x86_64
-BUILT="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/iphone-mirror-mcp"
-[[ -x "$BUILT" ]] || { echo "no binary at $BUILT" >&2; exit 1; }
+SLICES=()
+for arch in arm64 x86_64; do
+  echo "    building $arch"
+  swift build -c release --arch "$arch" --scratch-path ".build-$arch"
+  slice="$(swift build -c release --arch "$arch" --scratch-path ".build-$arch" --show-bin-path)/iphone-mirror-mcp"
+  [[ -x "$slice" ]] || { echo "no $arch binary at $slice" >&2; exit 1; }
+  SLICES+=("$slice")
+done
+
+BUILT="$PWD/.build-universal/iphone-mirror-mcp"
+mkdir -p "$(dirname "$BUILT")"
+lipo -create -output "$BUILT" "${SLICES[@]}"
+chmod +x "$BUILT"
 lipo -info "$BUILT"
 
 STAGE="$(mktemp -d)"

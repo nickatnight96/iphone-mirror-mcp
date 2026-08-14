@@ -6,3 +6,6 @@ DerivedData/
 *.png
 !docs/**/*.png
 dist/
+.build-arm64/
+.build-x86_64/
+.build-universal/
