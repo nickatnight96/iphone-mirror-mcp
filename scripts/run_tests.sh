@@ -60,4 +60,7 @@ echo "  ok version $SOURCE_VERSION consistent across binary, server.json, and pa
 echo "== tool reference =="
 python3 scripts/generate_tool_docs.py --check
 
+echo "== traffic updater selftest =="
+python3 .github/scripts/update_traffic.py --selftest
+
 echo "== ALL TESTS PASSED =="

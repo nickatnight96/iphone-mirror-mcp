@@ -63,6 +63,10 @@ jobs:
       - name: Tool reference is up to date
         run: python3 scripts/generate_tool_docs.py --check
 
+      # The traffic workflow's merge/badge logic, exercised on fixtures.
+      - name: Traffic updater selftest
+        run: python3 .github/scripts/update_traffic.py --selftest
+
       # Proves a stranger's `swift build -c release` works, which is exactly
       # what install.sh runs on their machine.
       - name: Release build

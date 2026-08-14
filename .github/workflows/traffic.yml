@@ -1,0 +1,52 @@
+name: Traffic
+
+on:
+  schedule:
+    # Daily. The traffic API keeps a rolling 14-day window, so even a broken
+    # run leaves two weeks of slack before any data is lost.
+    - cron: '23 5 * * *'
+  workflow_dispatch:
+
+# The job pushes the updated history to the traffic-data branch and
+# needs nothing beyond contents.
+permissions:
+  contents: write
+
+concurrency:
+  group: traffic
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Snapshot traffic
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # main provides the script; traffic-data carries the accumulated
+      # history so main's own history stays free of daily data commits.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: traffic-data
+          path: data
+
+      # TRAFFIC_PAT is a fine-grained PAT with Administration:read on this
+      # repo only. The default GITHUB_TOKEN cannot read the traffic
+      # endpoints (unsupported for app installation tokens).
+      - name: Snapshot traffic
+        env:
+          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_PAT }}
+        run: cd data && python3 ../.github/scripts/update_traffic.py
+
+      - name: Push history
+        run: |
+          cd data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add traffic/
+          if git diff --cached --quiet; then
+            echo "no traffic changes today"
+          else
+            git commit -m "traffic: daily snapshot"
+            git push origin HEAD:traffic-data
+          fi
