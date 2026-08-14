@@ -6,7 +6,7 @@
 Every tool this server exposes, generated from the server's own catalog so it
 always matches the shipped binary.
 
-- **63 tools** in `iphone-mirror-mcp 1.0.0`
+- **63 tools** in `iphone-mirror-mcp 1.0.1`
 - Parameters marked **required** must be supplied; everything else is optional.
 
 ## Coordinate contract

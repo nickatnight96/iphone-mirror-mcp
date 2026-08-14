@@ -159,17 +159,25 @@ def capture_catalog() -> tuple[dict, list[dict]]:
 
 
 def build_path() -> pathlib.Path:
-    """Prefer a release build; fall back to debug; build if neither exists."""
-    for configuration in ("release", "debug"):
-        found = subprocess.run(
-            ["swift", "build", "-c", configuration, "--show-bin-path"],
-            cwd=ROOT, capture_output=True, text=True,
-        )
-        if found.returncode == 0:
-            candidate = pathlib.Path(found.stdout.strip()) / "iphone-mirror-mcp"
-            if candidate.exists():
-                return candidate
-    sys.exit("no built binary found — run `swift build -c release` first")
+    """Build the binary from the CURRENT source, then return its path.
+
+    This must actually build, not merely locate: a binary lying around from
+    an earlier revision renders that revision's catalog, and --check then
+    compares stale output against stale docs and passes. That is not
+    hypothetical — CI's SwiftPM cache restored a v1.0.0 release binary into
+    a v1.0.1 checkout and the check green-lit outdated docs (2026-08-14).
+    An incremental build of an up-to-date tree costs about a second.
+    """
+    built = subprocess.run(["swift", "build", "-c", "debug"], cwd=ROOT,
+                           capture_output=True, text=True)
+    if built.returncode != 0:
+        sys.exit(f"swift build failed:\n{built.stderr[-2000:]}")
+    found = subprocess.run(["swift", "build", "-c", "debug", "--show-bin-path"],
+                           cwd=ROOT, capture_output=True, text=True)
+    candidate = pathlib.Path(found.stdout.strip()) / "iphone-mirror-mcp"
+    if not candidate.exists():
+        sys.exit(f"built, but no binary at {candidate}")
+    return candidate
 
 
 def render_parameters(schema: dict) -> str:
