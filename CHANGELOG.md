@@ -5,7 +5,30 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.1] - 2026-08-14
+
+### Changed
+- Pointer gestures skip the window-center re-engagement leg when the cursor
+  is already inside the mirroring window. The leg absorbs the engagement
+  transition played on window *entry*; a cursor that never left is still
+  engaged, so it was pure overhead. Measured: warm off-center taps dropped
+  from 1.65-1.68s to 1.00s. The entry path is unchanged. (#4)
+- Activation polls for frontmost at 25ms instead of sleeping a fixed 300ms
+  per stage of its fallback chain.
+- ScreenCaptureKit capture retries once after a short backoff — it fails
+  transiently under sustained capture load — and a failure of both capture
+  engines now reports both causes instead of a bare "couldn't be read".
+
+### Added
+- Live tests that prove a flick and a slow drag scroll real content and that
+  the session still accepts input afterwards. They gate on the OCR row set
+  (calibrated live: real scrolls move 9-11 rows, idle churn 0-3), normalize
+  scroll position first, and must run hands-off — they share the real cursor
+  with whoever is at the keyboard.
+- Documented limitations discovered reviewing Apple's iPhone Mirroring
+  surface: cross-device file drag-and-drop (#2) and Live Activities (#3).
+
+## [1.0.0] - 2026-08-13
 
 ### Added
 - `--version`, `--help`, and a `doctor` subcommand on the binary, so a setup

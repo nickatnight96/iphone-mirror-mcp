@@ -3,7 +3,7 @@
   "name": "io.github.nickatnight96/iphone-mirror-mcp",
   "title": "iPhone Mirror",
   "description": "Drive a real iPhone through the macOS iPhone Mirroring app, and run Xcode builds and tests on simulators and devices.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "repository": {
     "url": "https://github.com/nickatnight96/iphone-mirror-mcp",
     "source": "github"
@@ -12,8 +12,8 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/nickatnight96/iphone-mirror-mcp/releases/download/v1.0.0/iphone-mirror-mcp.mcpb",
-      "version": "1.0.0",
+      "identifier": "https://github.com/nickatnight96/iphone-mirror-mcp/releases/download/v1.0.1/iphone-mirror-mcp.mcpb",
+      "version": "1.0.1",
       "fileSha256": "e05aec5726c5f957217e2fe6ff55c76d16a2fcb2453efd349db5465ebdcaa5a5",
       "transport": {
         "type": "stdio"
