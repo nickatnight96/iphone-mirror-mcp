@@ -67,6 +67,16 @@ if [[ -n "$FROM_RELEASE" ]]; then
     --output "$TEMP/bundle.mcpb" --clobber
   SHA="$(openssl dgst -sha256 "$TEMP/bundle.mcpb" | awk '{print $2}')"
   echo "    sha256: $SHA"
+  # Cross-check against GitHub's server-side digest, computed at upload time.
+  # Recording a hash of a tampered download would defeat the point of the
+  # checksum, so two independent sources must agree before it is written.
+  API_DIGEST="$(gh api "repos/nickatnight96/iphone-mirror-mcp/releases/tags/$FROM_RELEASE" \
+    --jq '.assets[] | select(.name | endswith(".mcpb")) | .digest' | sed 's/^sha256://')"
+  if [[ -n "$API_DIGEST" && "$API_DIGEST" != "$SHA" ]]; then
+    echo "DIGEST MISMATCH: downloaded $SHA but GitHub recorded $API_DIGEST at upload — refusing to write server.json" >&2
+    exit 1
+  fi
+  echo "    matches GitHub's upload-time digest"
   update_server_json "${FROM_RELEASE#v}" \
     "$REPO_URL/releases/download/$FROM_RELEASE/iphone-mirror-mcp.mcpb" "$SHA"
   exit 0
