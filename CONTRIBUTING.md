@@ -89,3 +89,22 @@ Please do not file security issues publicly — see [SECURITY.md](SECURITY.md).
 Mirroring tools are serialized FIFO — they share one cursor and one window, so
 interleaving corrupts them. Xcode and simulator tools run concurrently. Put
 new tools on the right side of that line.
+
+## Cutting a release
+
+1. Bump `version` in `Sources/MirrorServer/MirrorMCPServer.swift`.
+2. Update `CHANGELOG.md`.
+3. `scripts/run_tests.sh` — this checks the version agrees across the binary,
+   `server.json`, and the package URL.
+4. Commit, then tag: `git tag -a vX.Y.Z -m "…" && git push origin vX.Y.Z`.
+   The release workflow builds the universal bundle and publishes it.
+5. **After the release exists**, sync the checksum:
+
+   ```sh
+   scripts/build_mcpb.sh --from-release vX.Y.Z
+   git commit -am "Record the vX.Y.Z bundle checksum"
+   ```
+
+   Step 5 is not optional and cannot be done earlier. A locally built bundle is
+   not byte-identical to CI's, and MCP clients verify `fileSha256` before
+   installing — advertising the wrong hash fails every bundle install.

@@ -14,7 +14,7 @@
       "registryType": "mcpb",
       "identifier": "https://github.com/nickatnight96/iphone-mirror-mcp/releases/download/v1.0.0/iphone-mirror-mcp.mcpb",
       "version": "1.0.0",
-      "fileSha256": "42db6479b32e3f4953f5c4bd33a54a0b2fb7151159d7697e7c9a9fb584546bfe",
+      "fileSha256": "e05aec5726c5f957217e2fe6ff55c76d16a2fcb2453efd349db5465ebdcaa5a5",
       "transport": {
         "type": "stdio"
       }
