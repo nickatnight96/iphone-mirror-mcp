@@ -54,6 +54,20 @@ to tell a missed element from a misread one.
 | **Hardware buttons** | Volume, side button, and ringer switch are physical |
 | **DRM-protected content** | Captures as black frames (Netflix and similar) |
 
+## Cross-device file drag-and-drop is not supported
+
+Apple's iPhone Mirroring supports dragging a file from the Mac into the phone
+window (and back). This server cannot do that: a CGEvent-synthesized drag
+carries no pasteboard payload, so there is nothing to drop. `sim_addmedia`
+covers the simulator equivalent; for a real phone, AirDrop or the Files app
+are the workarounds. Tracked as a possible future capability.
+
+## Live Activities are out of reach
+
+Live Activities surface in the **Mac menu bar**, outside the mirroring window
+this server drives. `notifications` / `notification_click` cover banner
+notifications; menu-bar Live Activities are not readable or clickable today.
+
 ## Clipboard bridging is app-dependent
 
 `read_clipboard` presses ⌘C on the phone and reads what comes back, which is

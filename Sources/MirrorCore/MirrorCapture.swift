@@ -23,13 +23,36 @@ public enum MirrorCapture {
             CGRequestScreenCaptureAccess()
             throw MirrorError.screenRecordingDenied()
         }
+        // ScreenCaptureKit fails transiently under sustained capture load
+        // (SCStreamErrorDomain -3811 "audio/video capture failure", observed
+        // live 2026-08-13 after many back-to-back captures). One short-backoff
+        // retry absorbs that; a real failure (window gone, session torn down)
+        // fails both attempts and moves on to the CLI.
+        var sckError: Error?
+        for attempt in 0..<2 {
+            do {
+                return try await captureWithSCK(windowInfo: windowInfo)
+            } catch {
+                sckError = error
+                if attempt == 0 { try? await Task.sleep(nanoseconds: 250_000_000) }
+            }
+        }
+        // Permission was already preflighted above, so any SCK failure
+        // (including its window lookup missing) is worth the CLI fallback.
+        FileHandle.standardError.write(Data("SCK capture failed (\(sckError.map(String.init(describing:)) ?? "?")); falling back to screencapture CLI\n".utf8))
         do {
-            return try await captureWithSCK(windowInfo: windowInfo)
-        } catch {
-            // Permission was already preflighted above, so any SCK failure
-            // (including its window lookup missing) is worth the CLI fallback.
-            FileHandle.standardError.write(Data("SCK capture failed (\(error)); falling back to screencapture CLI\n".utf8))
             return try await captureWithCLI(windowInfo: windowInfo)
+        } catch {
+            // Both engines failed. Surface both causes — the raw CLI error
+            // alone ("<tmpfile> couldn't be read") is useless to act on.
+            throw MirrorError(
+                "Capturing the mirroring window failed on both engines. "
+                + "ScreenCaptureKit: \(sckError.map(String.init(describing:)) ?? "unknown"). "
+                + "screencapture CLI: \(error).",
+                remediation: "Usually transient under heavy capture load — retry the call. "
+                + "If it persists, check that the mirroring session is connected (status tool) "
+                + "and that Screen Recording permission is granted to the app hosting this server."
+            )
         }
     }
 

@@ -33,6 +33,12 @@ iPhone and no TCC grants.
 To run live tests you need the session *connected*, which means the phone
 locked and nearby. They skip cleanly otherwise rather than failing.
 
+**Keep your hands off the Mac while the live suite runs (~2 minutes).** The
+input tests move the real cursor and depend on the mirroring window staying
+frontmost; typing or mousing mid-run steals both, and tests fail for reasons
+that have nothing to do with the code. If a live failure surprises you, first
+ask whether the machine was being used during the run.
+
 ## Expectations for a change
 
 **Every change ships with a test.** That is the house rule. Unit-test the

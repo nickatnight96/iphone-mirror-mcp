@@ -130,7 +130,8 @@ The live suite exists because several mechanisms behave differently in a test
 runner than in the real server process: AX focus, event delivery, and the
 run-loop-dependent APIs above. Those seams are only meaningfully verified
 against a running window server, so they are gated behind `MIRROR_MCP_LIVE=1`
-and skipped everywhere else, including CI.
+and skipped everywhere else, including CI. Run them hands-off: they share the
+real cursor and window focus with whoever is at the keyboard.
 
 The tool reference is generated from the server's own catalog
 (`scripts/generate_tool_docs.py`), and CI fails if it is out of date — a tool
