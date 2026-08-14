@@ -1,0 +1,163 @@
+{
+  "clones": {
+    "2026-07-31": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-01": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-02": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-03": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-04": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-05": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-06": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-07": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-08": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-09": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-10": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-11": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-12": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-13": {
+      "count": 0,
+      "uniques": 0
+    }
+  },
+  "forks": {
+    "2026-08-14": 0
+  },
+  "paths": {
+    "2026-08-14": [
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main/Tests",
+        "title": "/tree/main/Tests",
+        "uniques": 1
+      }
+    ]
+  },
+  "referrers": {
+    "2026-08-14": [
+      {
+        "count": 3,
+        "referrer": "github.com",
+        "uniques": 1
+      }
+    ]
+  },
+  "repo": "nickatnight96/iphone-mirror-mcp",
+  "stars": {
+    "2026-08-14": 0
+  },
+  "totals": {
+    "clones": {
+      "count": 0,
+      "uniques_day_sum": 0
+    },
+    "views": {
+      "count": 3,
+      "uniques_day_sum": 1
+    }
+  },
+  "views": {
+    "2026-07-31": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-01": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-02": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-03": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-04": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-05": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-06": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-07": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-08": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-09": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-10": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-11": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-12": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-08-13": {
+      "count": 3,
+      "uniques": 1
+    }
+  },
+  "watchers": {
+    "2026-08-14": 0
+  }
+}
