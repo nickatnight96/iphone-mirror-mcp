@@ -290,13 +290,26 @@ public final class MirrorWindowBridge: @unchecked Sendable {
     /// that state is silently dropped, so callers must surface an error
     /// rather than proceed.
     @discardableResult
+    /// Polls for the app becoming frontmost instead of sleeping a fixed
+    /// settle: activation usually lands within a few frames, and the fixed
+    /// 300ms wait charged the full amount to every stage of the fallback
+    /// chain (measured on the 2026-08-13 live probe: an activation-from-
+    /// background tap cost 5.8s, much of it these fixed waits).
+    private func becameFrontmost(_ pid: pid_t, withinUs timeout: UInt32) -> Bool {
+        let deadline = Date().addingTimeInterval(Double(timeout) / 1_000_000)
+        while Date() < deadline {
+            if frontmostPID() == pid { return true }
+            usleep(25_000)
+        }
+        return frontmostPID() == pid
+    }
+
     public func activate() -> Bool {
         guard let app = findProcess() else { return false }
         let pid = app.processIdentifier
         if frontmostPID() == pid { return true }
         app.activate()
-        usleep(Self.activationSettleUs)
-        if frontmostPID() == pid {
+        if becameFrontmost(pid, withinUs: Self.activationSettleUs) {
             usleep(Self.unhideSettleUs)
             return true
         }
@@ -311,8 +324,7 @@ public final class MirrorWindowBridge: @unchecked Sendable {
             at: URL(fileURLWithPath: Self.appPath), configuration: configuration
         ) { _, _ in semaphore.signal() }
         _ = semaphore.wait(timeout: .now() + 3)
-        usleep(Self.activationSettleUs)
-        if frontmostPID() == pid {
+        if becameFrontmost(pid, withinUs: Self.activationSettleUs) {
             usleep(Self.unhideSettleUs)
             return true
         }
@@ -323,7 +335,7 @@ public final class MirrorWindowBridge: @unchecked Sendable {
                 end tell
             end tell
             """)
-        usleep(Self.activationSettleUs)
+        _ = becameFrontmost(pid, withinUs: Self.activationSettleUs)
         guard let front = frontmostPID() else {
             // Focus query unavailable: assume the fallbacks worked rather
             // than fail input that may well deliver.

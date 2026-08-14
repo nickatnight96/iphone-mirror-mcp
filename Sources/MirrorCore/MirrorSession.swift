@@ -365,7 +365,7 @@ public actor MirrorSession {
         let geometry = try await currentGeometry()
         try assertFrontmostForInput()
         try MirrorInput.tap(at: geometry.screenPoint(fromPixelX: x, pixelY: y),
-                            through: Self.engagementWaypoint(of: geometry))
+                            through: Self.engagementWaypoint(of: geometry), windowBounds: geometry.boundsPoints)
         try await verifyExpectation(expect, timeout: expectTimeout, after: "tap")
     }
 
@@ -389,7 +389,7 @@ public actor MirrorSession {
         let geometry = try await currentGeometry()
         try assertFrontmostForInput()
         try MirrorInput.doubleTap(at: geometry.screenPoint(fromPixelX: x, pixelY: y),
-                                  through: Self.engagementWaypoint(of: geometry))
+                                  through: Self.engagementWaypoint(of: geometry), windowBounds: geometry.boundsPoints)
     }
 
     public func longPress(x: Double, y: Double, durationMs: Int) async throws {
@@ -398,7 +398,7 @@ public actor MirrorSession {
         try assertFrontmostForInput()
         try MirrorInput.longPress(at: geometry.screenPoint(fromPixelX: x, pixelY: y),
                                   durationMs: durationMs,
-                                  through: Self.engagementWaypoint(of: geometry))
+                                  through: Self.engagementWaypoint(of: geometry), windowBounds: geometry.boundsPoints)
     }
 
     public func swipe(fromX: Double, fromY: Double, toX: Double, toY: Double, durationMs: Int) async throws {
@@ -409,7 +409,7 @@ public actor MirrorSession {
             from: geometry.screenPoint(fromPixelX: fromX, pixelY: fromY),
             to: geometry.screenPoint(fromPixelX: toX, pixelY: toY),
             durationMs: durationMs,
-            through: Self.engagementWaypoint(of: geometry)
+            through: Self.engagementWaypoint(of: geometry), windowBounds: geometry.boundsPoints
         )
     }
 
@@ -421,7 +421,7 @@ public actor MirrorSession {
             from: geometry.screenPoint(fromPixelX: fromX, pixelY: fromY),
             to: geometry.screenPoint(fromPixelX: toX, pixelY: toY),
             durationMs: durationMs,
-            through: Self.engagementWaypoint(of: geometry)
+            through: Self.engagementWaypoint(of: geometry), windowBounds: geometry.boundsPoints
         )
     }
 

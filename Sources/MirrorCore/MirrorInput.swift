@@ -89,11 +89,23 @@ public enum MirrorInput {
     /// the cursor already engaged inside the window, landed exactly).
     /// Marching to the waypoint first absorbs the engagement, so the
     /// waypoint→target march is delivered entirely post-engagement.
-    static func placeCursor(at point: CGPoint, through waypoint: CGPoint? = nil) throws {
+    static func placeCursor(
+        at point: CGPoint, through waypoint: CGPoint? = nil, windowBounds: CGRect? = nil
+    ) throws {
         if !CGPreflightPostEventAccess() { CGRequestPostEventAccess() }
         for attempt in 0..<3 {
             var start = CGEvent(source: nil)?.location ?? point
-            if let waypoint,
+            // The waypoint leg exists to absorb the pointer-engagement
+            // transition the app plays when the cursor ENTERS the window
+            // (entering un-engaged leaves the internal pointer at the entry
+            // edge — observed live 2026-08-13). A cursor that is already
+            // inside the window never re-enters, so it is still engaged and
+            // the leg is pure overhead: measured 0.75s per gesture
+            // (1.67s → 0.93s, live probe 2026-08-13). The inset keeps the
+            // title strip and resize edges from counting as "inside".
+            let alreadyEngaged = windowBounds
+                .map { $0.insetBy(dx: 8, dy: 8).contains(start) } ?? false
+            if let waypoint, !alreadyEngaged,
                !cursorIsPlaced(current: start, target: waypoint, tolerance: engagementVicinity) {
                 _ = marchCursor(from: start, to: waypoint)
                 usleep(cursorEntrySettleUs)
@@ -201,7 +213,7 @@ public enum MirrorInput {
 
     // MARK: - Pointing
 
-    public static func tap(at point: CGPoint, through waypoint: CGPoint? = nil) throws {
+    public static func tap(at point: CGPoint, through waypoint: CGPoint? = nil, windowBounds: CGRect? = nil) throws {
         guard let down = mouseEvent(.leftMouseDown, at: point),
               let up = mouseEvent(.leftMouseUp, at: point) else {
             throw MirrorError("Could not create mouse events (is Accessibility permission granted?)")
@@ -210,7 +222,7 @@ public enum MirrorInput {
         // outside its window (observed live 2026-08-12: identical taps failed
         // with the cursor parked elsewhere and landed with it inside) — so
         // every pointer gesture places the cursor first, not just swipes.
-        try placeCursor(at: point, through: waypoint)
+        try placeCursor(at: point, through: waypoint, windowBounds: windowBounds)
         withHiddenCursor {
             post(down)
             usleep(clickHoldUs)
@@ -218,7 +230,7 @@ public enum MirrorInput {
         }
     }
 
-    public static func doubleTap(at point: CGPoint, through waypoint: CGPoint? = nil) throws {
+    public static func doubleTap(at point: CGPoint, through waypoint: CGPoint? = nil, windowBounds: CGRect? = nil) throws {
         // Create every event up front so a creation failure throws instead
         // of silently reporting a tap that never happened.
         var pairs: [(down: CGEvent, up: CGEvent)] = []
@@ -231,7 +243,7 @@ public enum MirrorInput {
             up.setIntegerValueField(.mouseEventClickState, value: clickState)
             pairs.append((down, up))
         }
-        try placeCursor(at: point, through: waypoint)
+        try placeCursor(at: point, through: waypoint, windowBounds: windowBounds)
         withHiddenCursor {
             for (index, pair) in pairs.enumerated() {
                 post(pair.down)
@@ -242,13 +254,13 @@ public enum MirrorInput {
         }
     }
 
-    public static func longPress(at point: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil) throws {
+    public static func longPress(at point: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil, windowBounds: CGRect? = nil) throws {
         let duration = clampDurationMs(durationMs)
         guard let down = mouseEvent(.leftMouseDown, at: point),
               let up = mouseEvent(.leftMouseUp, at: point) else {
             throw MirrorError("Could not create mouse events (is Accessibility permission granted?)")
         }
-        try placeCursor(at: point, through: waypoint)
+        try placeCursor(at: point, through: waypoint, windowBounds: windowBounds)
         withHiddenCursor {
             post(down)
             usleep(UInt32(duration) * 1000)
@@ -258,13 +270,13 @@ public enum MirrorInput {
 
     /// Sustained mouse drag (icon rearrange, sliders, drag-and-drop) —
     /// distinct from swipe, which scrolls content.
-    public static func drag(from start: CGPoint, to end: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil) throws {
+    public static func drag(from start: CGPoint, to end: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil, windowBounds: CGRect? = nil) throws {
         let duration = clampDurationMs(durationMs)
         guard let down = mouseEvent(.leftMouseDown, at: start),
               let up = mouseEvent(.leftMouseUp, at: end) else {
             throw MirrorError("Could not create mouse events (is Accessibility permission granted?)")
         }
-        try placeCursor(at: start, through: waypoint)
+        try placeCursor(at: start, through: waypoint, windowBounds: windowBounds)
         withHiddenCursor {
             post(down)
             let steps = max(10, duration / 16)
@@ -297,7 +309,7 @@ public enum MirrorInput {
     /// mid-gesture would cut the sequence short of its lift/close, leaving
     /// iOS tracking a phantom finger — SpringBoard wedges mid-transition and
     /// drops all further input until the mirroring app restarts.
-    public static func swipe(from start: CGPoint, to end: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil) throws {
+    public static func swipe(from start: CGPoint, to end: CGPoint, durationMs: Int, through waypoint: CGPoint? = nil, windowBounds: CGRect? = nil) throws {
         let duration = clampDurationMs(durationMs)
         let deltaX = end.x - start.x
         let deltaY = end.y - start.y
@@ -318,7 +330,7 @@ public enum MirrorInput {
 
         // Route the gesture: scroll events follow the REAL cursor, so place
         // and verify it over the gesture point before detaching the mouse.
-        try placeCursor(at: midpoint, through: waypoint)
+        try placeCursor(at: midpoint, through: waypoint, windowBounds: windowBounds)
 
         let stepDelay = UInt32(duration) * 1000 / UInt32(max(plan.drag.count, 1))
         withHiddenCursor {
