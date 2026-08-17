@@ -5,8 +5,8 @@
 ![Platform: macOS 15+](https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey)
 ![Swift 6](https://img.shields.io/badge/Swift-6-orange)
 [![Listed on mcpservers.org](https://img.shields.io/badge/mcpservers.org-listed-blue)](https://mcpservers.org/servers/nickatnight96/iphone-mirror-mcp)
-[![Clones](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnickatnight96%2Fiphone-mirror-mcp%2Ftraffic-data%2Ftraffic%2Fbadges%2Fclones.json)](https://github.com/nickatnight96/iphone-mirror-mcp/blob/traffic-data/traffic/history.json)
-[![Views](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnickatnight96%2Fiphone-mirror-mcp%2Ftraffic-data%2Ftraffic%2Fbadges%2Fviews.json)](https://github.com/nickatnight96/iphone-mirror-mcp/blob/traffic-data/traffic/history.json)
+[![Clones](https://img.shields.io/endpoint?url=https%3A%2F%2Fnickatnight96.github.io%2Fiphone-mirror-mcp%2Ftraffic%2Fbadges%2Fclones.json)](https://github.com/nickatnight96/iphone-mirror-mcp/blob/traffic-data/traffic/history.json)
+[![Views](https://img.shields.io/endpoint?url=https%3A%2F%2Fnickatnight96.github.io%2Fiphone-mirror-mcp%2Ftraffic%2Fbadges%2Fviews.json)](https://github.com/nickatnight96/iphone-mirror-mcp/blob/traffic-data/traffic/history.json)
 
 **Let any LLM drive a real iPhone.**
 
