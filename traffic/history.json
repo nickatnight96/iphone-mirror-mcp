@@ -79,6 +79,10 @@
     "2026-08-19": {
       "count": 7,
       "uniques": 5
+    },
+    "2026-08-20": {
+      "count": 7,
+      "uniques": 4
     }
   },
   "forks": {
@@ -346,6 +350,68 @@
         "title": "/discussions",
         "uniques": 1
       }
+    ],
+    "2026-08-22": [
+      {
+        "count": 65,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 19
+      },
+      {
+        "count": 12,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/traffic",
+        "title": "/graphs/traffic",
+        "uniques": 1
+      },
+      {
+        "count": 11,
+        "path": "/nickatnight96/iphone-mirror-mcp/actions",
+        "title": "/actions",
+        "uniques": 1
+      },
+      {
+        "count": 8,
+        "path": "/nickatnight96/iphone-mirror-mcp/pulse",
+        "title": "/pulse",
+        "uniques": 1
+      },
+      {
+        "count": 7,
+        "path": "/nickatnight96/iphone-mirror-mcp/issues",
+        "title": "/issues",
+        "uniques": 1
+      },
+      {
+        "count": 4,
+        "path": "/nickatnight96/iphone-mirror-mcp/agents",
+        "title": "/agents",
+        "uniques": 1
+      },
+      {
+        "count": 4,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/traffic-data/traffic/history.json",
+        "title": "/blob/traffic-data/traffic/history.json",
+        "uniques": 1
+      },
+      {
+        "count": 4,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/community",
+        "title": "/graphs/community",
+        "uniques": 1
+      },
+      {
+        "count": 3,
+        "path": "/nickatnight96/iphone-mirror-mcp/actions/runs/31831299701",
+        "title": "/actions/runs/31831299701",
+        "uniques": 1
+      },
+      {
+        "count": 3,
+        "path": "/nickatnight96/iphone-mirror-mcp/discussions",
+        "title": "/discussions",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -423,6 +489,23 @@
         "referrer": "com.linkedin.android",
         "uniques": 2
       }
+    ],
+    "2026-08-22": [
+      {
+        "count": 80,
+        "referrer": "github.com",
+        "uniques": 3
+      },
+      {
+        "count": 18,
+        "referrer": "linkedin.com",
+        "uniques": 13
+      },
+      {
+        "count": 4,
+        "referrer": "com.linkedin.android",
+        "uniques": 2
+      }
     ]
   },
   "repo": "nickatnight96/iphone-mirror-mcp",
@@ -433,12 +516,12 @@
   },
   "totals": {
     "clones": {
-      "count": 230,
-      "uniques_day_sum": 113
+      "count": 237,
+      "uniques_day_sum": 117
     },
     "views": {
-      "count": 147,
-      "uniques_day_sum": 20
+      "count": 154,
+      "uniques_day_sum": 23
     }
   },
   "views": {
@@ -521,6 +604,10 @@
     "2026-08-19": {
       "count": 24,
       "uniques": 7
+    },
+    "2026-08-20": {
+      "count": 7,
+      "uniques": 3
     }
   },
   "watchers": {
