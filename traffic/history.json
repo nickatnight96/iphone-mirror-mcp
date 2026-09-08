@@ -147,6 +147,14 @@
     "2026-09-05": {
       "count": 15,
       "uniques": 8
+    },
+    "2026-09-06": {
+      "count": 15,
+      "uniques": 9
+    },
+    "2026-09-07": {
+      "count": 7,
+      "uniques": 6
     }
   },
   "forks": {
@@ -1122,6 +1130,56 @@
         "title": "/tags",
         "uniques": 1
       }
+    ],
+    "2026-09-08": [
+      {
+        "count": 13,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 8
+      },
+      {
+        "count": 4,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main",
+        "title": "/tree/main",
+        "uniques": 1
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/getting-started.md",
+        "title": "/blob/main/docs/getting-started.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/traffic",
+        "title": "/graphs/traffic",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/issues",
+        "title": "/issues",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/pulse",
+        "title": "/pulse",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/releases/tag/v1.0.1",
+        "title": "/releases/tag/v1.0.1",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/tags",
+        "title": "/tags",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -1344,6 +1402,18 @@
         "referrer": "linkedin.com",
         "uniques": 1
       }
+    ],
+    "2026-09-08": [
+      {
+        "count": 10,
+        "referrer": "github.com",
+        "uniques": 2
+      },
+      {
+        "count": 1,
+        "referrer": "linkedin.com",
+        "uniques": 1
+      }
     ]
   },
   "repo": "nickatnight96/iphone-mirror-mcp",
@@ -1355,12 +1425,12 @@
   },
   "totals": {
     "clones": {
-      "count": 403,
-      "uniques_day_sum": 207
+      "count": 425,
+      "uniques_day_sum": 222
     },
     "views": {
-      "count": 180,
-      "uniques_day_sum": 37
+      "count": 183,
+      "uniques_day_sum": 39
     }
   },
   "views": {
@@ -1511,6 +1581,14 @@
     "2026-09-05": {
       "count": 0,
       "uniques": 0
+    },
+    "2026-09-06": {
+      "count": 2,
+      "uniques": 1
+    },
+    "2026-09-07": {
+      "count": 1,
+      "uniques": 1
     }
   },
   "watchers": {
