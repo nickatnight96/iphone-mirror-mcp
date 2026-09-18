@@ -191,6 +191,10 @@
     "2026-09-16": {
       "count": 7,
       "uniques": 5
+    },
+    "2026-09-17": {
+      "count": 16,
+      "uniques": 9
     }
   },
   "forks": {
@@ -1592,6 +1596,50 @@
         "title": "/releases/tag/v1.0.1",
         "uniques": 1
       }
+    ],
+    "2026-09-18": [
+      {
+        "count": 17,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 12
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main",
+        "title": "/tree/main",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/limitations.md",
+        "title": "/blob/main/docs/limitations.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/community",
+        "title": "/graphs/community",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/traffic",
+        "title": "/graphs/traffic",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/pulse",
+        "title": "/pulse",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/releases/tag/v1.0.1",
+        "title": "/releases/tag/v1.0.1",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -1913,6 +1961,28 @@
         "referrer": "linkedin.com",
         "uniques": 1
       }
+    ],
+    "2026-09-18": [
+      {
+        "count": 5,
+        "referrer": "github.com",
+        "uniques": 2
+      },
+      {
+        "count": 2,
+        "referrer": "Bing",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "Google",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "linkedin.com",
+        "uniques": 1
+      }
     ]
   },
   "repo": "nickatnight96/iphone-mirror-mcp",
@@ -1924,12 +1994,12 @@
   },
   "totals": {
     "clones": {
-      "count": 539,
-      "uniques_day_sum": 292
+      "count": 555,
+      "uniques_day_sum": 301
     },
     "views": {
-      "count": 203,
-      "uniques_day_sum": 53
+      "count": 204,
+      "uniques_day_sum": 54
     }
   },
   "views": {
@@ -2124,6 +2194,10 @@
     "2026-09-16": {
       "count": 4,
       "uniques": 4
+    },
+    "2026-09-17": {
+      "count": 1,
+      "uniques": 1
     }
   },
   "watchers": {
