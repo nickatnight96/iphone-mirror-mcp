@@ -207,6 +207,10 @@
     "2026-09-20": {
       "count": 10,
       "uniques": 7
+    },
+    "2026-09-21": {
+      "count": 8,
+      "uniques": 5
     }
   },
   "forks": {
@@ -1734,6 +1738,44 @@
         "title": "/releases/tag/v1.0.1",
         "uniques": 1
       }
+    ],
+    "2026-09-22": [
+      {
+        "count": 24,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 19
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/limitations.md",
+        "title": "/blob/main/docs/limitations.md",
+        "uniques": 2
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/troubleshooting.md",
+        "title": "/blob/main/docs/troubleshooting.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/community",
+        "title": "/graphs/community",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/traffic",
+        "title": "/graphs/traffic",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/pulse",
+        "title": "/pulse",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -2115,12 +2157,12 @@
   },
   "totals": {
     "clones": {
-      "count": 577,
-      "uniques_day_sum": 316
+      "count": 585,
+      "uniques_day_sum": 321
     },
     "views": {
-      "count": 210,
-      "uniques_day_sum": 60
+      "count": 213,
+      "uniques_day_sum": 63
     }
   },
   "views": {
@@ -2331,6 +2373,10 @@
     "2026-09-20": {
       "count": 5,
       "uniques": 5
+    },
+    "2026-09-21": {
+      "count": 3,
+      "uniques": 3
     }
   },
   "watchers": {
