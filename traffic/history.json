@@ -211,6 +211,10 @@
     "2026-09-21": {
       "count": 8,
       "uniques": 5
+    },
+    "2026-09-22": {
+      "count": 19,
+      "uniques": 12
     }
   },
   "forks": {
@@ -1776,6 +1780,44 @@
         "title": "/pulse",
         "uniques": 1
       }
+    ],
+    "2026-09-23": [
+      {
+        "count": 23,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 19
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/limitations.md",
+        "title": "/blob/main/docs/limitations.md",
+        "uniques": 2
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/troubleshooting.md",
+        "title": "/blob/main/docs/troubleshooting.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/community",
+        "title": "/graphs/community",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/traffic",
+        "title": "/graphs/traffic",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/pulse",
+        "title": "/pulse",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -2157,8 +2199,8 @@
   },
   "totals": {
     "clones": {
-      "count": 585,
-      "uniques_day_sum": 321
+      "count": 604,
+      "uniques_day_sum": 333
     },
     "views": {
       "count": 213,
@@ -2377,6 +2419,10 @@
     "2026-09-21": {
       "count": 3,
       "uniques": 3
+    },
+    "2026-09-22": {
+      "count": 0,
+      "uniques": 0
     }
   },
   "watchers": {
