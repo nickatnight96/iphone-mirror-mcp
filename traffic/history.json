@@ -215,6 +215,10 @@
     "2026-09-22": {
       "count": 19,
       "uniques": 12
+    },
+    "2026-09-23": {
+      "count": 11,
+      "uniques": 6
     }
   },
   "forks": {
@@ -1818,6 +1822,44 @@
         "title": "/pulse",
         "uniques": 1
       }
+    ],
+    "2026-09-24": [
+      {
+        "count": 17,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 16
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/limitations.md",
+        "title": "/blob/main/docs/limitations.md",
+        "uniques": 2
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/troubleshooting.md",
+        "title": "/blob/main/docs/troubleshooting.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/community",
+        "title": "/graphs/community",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/graphs/traffic",
+        "title": "/graphs/traffic",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/pulse",
+        "title": "/pulse",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -2188,6 +2230,28 @@
         "referrer": "linkedin.com",
         "uniques": 1
       }
+    ],
+    "2026-09-24": [
+      {
+        "count": 5,
+        "referrer": "github.com",
+        "uniques": 2
+      },
+      {
+        "count": 1,
+        "referrer": "DuckDuckGo",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "Google",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "linkedin.com",
+        "uniques": 1
+      }
     ]
   },
   "repo": "nickatnight96/iphone-mirror-mcp",
@@ -2199,8 +2263,8 @@
   },
   "totals": {
     "clones": {
-      "count": 604,
-      "uniques_day_sum": 333
+      "count": 615,
+      "uniques_day_sum": 339
     },
     "views": {
       "count": 213,
@@ -2421,6 +2485,10 @@
       "uniques": 3
     },
     "2026-09-22": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-09-23": {
       "count": 0,
       "uniques": 0
     }
