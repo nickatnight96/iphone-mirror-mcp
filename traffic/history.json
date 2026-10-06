@@ -263,6 +263,10 @@
     "2026-10-04": {
       "count": 13,
       "uniques": 5
+    },
+    "2026-10-05": {
+      "count": 31,
+      "uniques": 20
     }
   },
   "forks": {
@@ -2264,6 +2268,68 @@
         "title": "/tree/main/Sources/MirrorServer",
         "uniques": 1
       }
+    ],
+    "2026-10-06": [
+      {
+        "count": 31,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 17
+      },
+      {
+        "count": 3,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/architecture.md",
+        "title": "/blob/main/docs/architecture.md",
+        "uniques": 3
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/HEAD/README.md",
+        "title": "/blob/HEAD/README.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/limitations.md",
+        "title": "/blob/main/docs/limitations.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/issues",
+        "title": "/issues",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main",
+        "title": "/tree/main",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main/Sources",
+        "title": "/tree/main/Sources",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main/Sources/MirrorCore",
+        "title": "/tree/main/Sources/MirrorCore",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main/Sources/MirrorServer",
+        "title": "/tree/main/Sources/MirrorServer",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main/scripts",
+        "title": "/tree/main/scripts",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -2756,12 +2822,12 @@
   },
   "totals": {
     "clones": {
-      "count": 761,
-      "uniques_day_sum": 429
+      "count": 792,
+      "uniques_day_sum": 449
     },
     "views": {
-      "count": 248,
-      "uniques_day_sum": 83
+      "count": 255,
+      "uniques_day_sum": 86
     }
   },
   "views": {
@@ -3027,6 +3093,10 @@
     },
     "2026-10-04": {
       "count": 6,
+      "uniques": 3
+    },
+    "2026-10-05": {
+      "count": 7,
       "uniques": 3
     }
   },
