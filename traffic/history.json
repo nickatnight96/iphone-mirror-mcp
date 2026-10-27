@@ -343,6 +343,10 @@
     "2026-10-24": {
       "count": 13,
       "uniques": 9
+    },
+    "2026-10-25": {
+      "count": 17,
+      "uniques": 13
     }
   },
   "forks": {
@@ -3444,6 +3448,68 @@
         "title": "/blob/main/SECURITY.md",
         "uniques": 1
       }
+    ],
+    "2026-10-27": [
+      {
+        "count": 53,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 42
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/HEAD/docs/getting-started.md",
+        "title": "/blob/HEAD/docs/getting-started.md",
+        "uniques": 2
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/limitations.md",
+        "title": "/blob/main/docs/limitations.md",
+        "uniques": 2
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/5a676528ec7779ec49927f7469c7aebc0806125c/docs/limitations.md",
+        "title": "/blob/5a676528ec7779ec49927f7469c7aebc0806125c/docs/limitations.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/5a676528ec7779ec49927f7469c7aebc0806125c/docs/recipes.md",
+        "title": "/blob/5a676528ec7779ec49927f7469c7aebc0806125c/docs/recipes.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/5a676528ec7779ec49927f7469c7aebc0806125c/docs/tools.md",
+        "title": "/blob/5a676528ec7779ec49927f7469c7aebc0806125c/docs/tools.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/5a676528ec7779ec49927f7469c7aebc0806125c/docs/troubleshooting.md",
+        "title": "/blob/5a676528ec7779ec49927f7469c7aebc0806125c/docs/troubleshooting.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/HEAD/docs/tools.md",
+        "title": "/blob/HEAD/docs/tools.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/README.md",
+        "title": "/blob/main/README.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/architecture.md",
+        "title": "/blob/main/docs/architecture.md",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -4111,6 +4177,28 @@
         "referrer": "github.com",
         "uniques": 1
       }
+    ],
+    "2026-10-27": [
+      {
+        "count": 7,
+        "referrer": "perplexity.ai",
+        "uniques": 5
+      },
+      {
+        "count": 1,
+        "referrer": "DuckDuckGo",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "github.com",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "mcpservers.org",
+        "uniques": 1
+      }
     ]
   },
   "repo": "nickatnight96/iphone-mirror-mcp",
@@ -4127,12 +4215,12 @@
   },
   "totals": {
     "clones": {
-      "count": 1219,
-      "uniques_day_sum": 702
+      "count": 1236,
+      "uniques_day_sum": 715
     },
     "views": {
-      "count": 332,
-      "uniques_day_sum": 142
+      "count": 339,
+      "uniques_day_sum": 149
     }
   },
   "views": {
@@ -4479,6 +4567,10 @@
     "2026-10-24": {
       "count": 8,
       "uniques": 3
+    },
+    "2026-10-25": {
+      "count": 7,
+      "uniques": 7
     }
   },
   "watchers": {
