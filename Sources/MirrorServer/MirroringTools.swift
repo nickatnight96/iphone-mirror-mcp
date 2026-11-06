@@ -409,7 +409,7 @@ enum MirroringTools {
 
             RegisteredTool(
                 name: "mirror_restart",
-                description: "Fully restart the iPhone Mirroring app: quit, relaunch. THE recovery for a zombie session — video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way. Refused while the session is paused by a person (iPhone in use).",
+                description: "Fully restart the iPhone Mirroring app: quit, relaunch. THE recovery for a zombie session: video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way. Refused while the session is paused by a person (iPhone in use).",
                 schema: ["type": "object", "properties": [:]]
             ) { _ in
                 let status = try await session.restartMirroring()

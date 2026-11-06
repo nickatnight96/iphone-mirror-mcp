@@ -93,7 +93,9 @@ HEADER = """<!-- GENERATED FILE — DO NOT EDIT BY HAND.
 Every tool this server exposes, generated from the server's own catalog so it
 always matches the shipped binary.
 
-- **{count} tools** in `iphone-mirror-mcp {version}`
+- **{count} tools** in `iphone-mirror-mcp {version}`, listed in `--mode full`.
+  `--mode read` (the default) lists only the tools that observe; `--mode input`
+  adds the ones that send input. See [getting-started.md](getting-started.md#modes).
 - Parameters marked **required** must be supplied; everything else is optional.
 
 ## Coordinate contract
@@ -116,10 +118,14 @@ screenshot  →  find the element (read_screen / find_text / find_image)
 
 
 def capture_catalog() -> tuple[dict, list[dict]]:
-    """Start the built binary and ask it for its tool list over stdio."""
+    """Start the built binary and ask it for its tool list over stdio.
+
+    Full mode: the default (read) lists only 15 tools, and the reference
+    must cover every tool the binary can expose.
+    """
     binary = build_path()
     process = subprocess.Popen(
-        [str(binary)],
+        [str(binary), "--mode", "full"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         text=True, bufsize=1,
     )

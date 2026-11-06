@@ -42,7 +42,7 @@ permissions end to end, and prints the exact config for your client.
 Then, for Claude Code:
 
 ```sh
-claude mcp add --scope user iphone-mirror -- ~/.local/bin/iphone-mirror-mcp
+claude mcp add --scope user iphone-mirror -- ~/.local/bin/iphone-mirror-mcp --mode full
 ```
 
 Or for any other MCP client:
@@ -51,11 +51,17 @@ Or for any other MCP client:
 {
   "mcpServers": {
     "iphone-mirror": {
-      "command": "/Users/YOU/.local/bin/iphone-mirror-mcp"
+      "command": "/Users/YOU/.local/bin/iphone-mirror-mcp",
+      "args": ["--mode", "full"]
     }
   }
 }
 ```
+
+`--mode` picks how much the model may do: `read` (the default) only looks at
+the phone, `input` adds taps and typing, `full` adds launching the mirroring
+app, recordings, and Xcode builds. With no arguments the server lists only the
+15 read tools. See [modes](docs/getting-started.md#modes).
 
 Ask your model:
 

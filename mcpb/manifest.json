@@ -28,7 +28,16 @@
     "entry_point": "server/iphone-mirror-mcp",
     "mcp_config": {
       "command": "${__dirname}/server/iphone-mirror-mcp",
-      "args": []
+      "args": ["--mode", "${user_config.mode}"]
+    }
+  },
+  "user_config": {
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "Which tools the server lists. read: observe only (status, screenshot, OCR, listings), nothing is sent to the phone. input: read plus taps, swipes, typing, keys, and navigation. full: every tool, including launching or restarting the mirroring app, recordings, and Xcode builds. Changing it restarts the server.",
+      "default": "read",
+      "required": true
     }
   },
   "compatibility": {

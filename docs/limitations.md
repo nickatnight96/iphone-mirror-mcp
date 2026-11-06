@@ -86,7 +86,10 @@ fidelity.
 Menu-driven navigation (`home`, `app_switcher`, `spotlight`) reaches for the
 **View** menu by its English name, with ⌘1/⌘2/⌘3 as a fallback. On a
 non-English macOS the fallback carries it, but the primary path will miss.
-Pause-overlay detection knows English and French button labels.
+The pause overlay's Resume button is recognized by its English and French
+labels (resume, retry, reprendre, continuer, réessayer). On another locale an
+idle pause looks unlabeled, and the server leaves it for a person to resume
+rather than guess; this is the safe failure, not a crash.
 
 If you run a non-English macOS and something in this area misbehaves, that is
 a real bug and worth reporting — the fallbacks are not equally exercised.

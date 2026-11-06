@@ -90,8 +90,8 @@ Grant two, in System Settings → Privacy & Security:
 | **Screen Recording** | Privacy & Security → Screen & System Audio Recording | Capture the mirroring window |
 
 A third, **Automation → System Events**, is requested the first time it is
-needed (resume clicks, activation fallback, notification clicks). Approve the
-prompt when it appears.
+needed (clicking a labeled Resume button on an idle pause, the activation
+fallback, notification clicks). Approve the prompt when it appears.
 
 After granting either permission, **fully quit and reopen the host app**.
 macOS only re-reads these at process start, so a running client keeps the old
@@ -139,7 +139,7 @@ unlock the phone; that is expected.
 **Claude Code:**
 
 ```sh
-claude mcp add --scope user iphone-mirror -- ~/.local/bin/iphone-mirror-mcp
+claude mcp add --scope user iphone-mirror -- ~/.local/bin/iphone-mirror-mcp --mode input
 ```
 
 **Anything else** — add a stdio server pointing at the binary:
@@ -148,14 +148,31 @@ claude mcp add --scope user iphone-mirror -- ~/.local/bin/iphone-mirror-mcp
 {
   "mcpServers": {
     "iphone-mirror": {
-      "command": "/Users/YOU/.local/bin/iphone-mirror-mcp"
+      "command": "/Users/YOU/.local/bin/iphone-mirror-mcp",
+      "args": ["--mode", "input"]
     }
   }
 }
 ```
 
-No arguments, no environment variables, no API keys. Use an **absolute path**;
-most clients do not expand `~`.
+No environment variables, no API keys. Use an **absolute path**; most clients
+do not expand `~`.
+
+### Modes
+
+`--mode` picks the tool set. The server lists only those tools; a hidden tool
+answers "Unknown tool" if a model calls it anyway. Changing the mode takes a
+restart, so a model cannot switch it.
+
+| Mode | Tools | What the model can do |
+|---|---|---|
+| `read` (default) | 15 | Look: status, screenshot, OCR, find, wait, notifications, and the Xcode, device, and simulator listings. Nothing is sent to the phone. |
+| `input` | 34 | Look and act on the phone: taps, swipes, typing, keys, navigation, `batch`, `notification_click`. |
+| `full` | 63 | Everything: `mirror_launch`, `mirror_restart`, recordings, Xcode builds and tests, device and simulator management. |
+
+With no `--mode` the server runs in `read`, so a config that only names the
+binary gets 15 tools. Use `input` for the examples below and `full` for
+`run_on_iphone`.
 
 See **[clients.md](clients.md)** for exact snippets and config file locations
 for Claude Desktop, Cursor, VS Code, Zed, Codex CLI, Windsurf, and others.
