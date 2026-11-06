@@ -96,7 +96,7 @@ public enum CLI {
     public static func run(_ arguments: [String]) async throws -> Int32 {
         switch parse(arguments) {
         case .serve:
-            try await MirrorMCPServer.run()
+            try await MirrorMCPServer.run(mode: .read)
             return ExitCode.ok
 
         case .version:

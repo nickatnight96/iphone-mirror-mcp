@@ -8,7 +8,8 @@ public enum MirrorMCPServer {
     public static let name = "iphone-mirror-mcp"
     public static let version = "1.0.1"
 
-    static let instructions = """
+    static func instructions(mode: ServeMode) -> String {
+        """
         Drive a real iPhone through the built-in macOS iPhone Mirroring app, and run \
         Xcode builds/tests on simulators and physical devices.
 
@@ -17,27 +18,46 @@ public enum MirrorMCPServer {
         read_screen/find_text) → tap/swipe → screenshot to verify.
 
         The mirroring session needs the iPhone paired, nearby, and locked. If a tool \
-        reports the session paused or not running, call mirror_launch and check status. \
+        reports the session paused, a person must resume it (lock the iPhone and leave it \
+        near the Mac, or click Resume in the iPhone Mirroring window); this server never \
+        clicks past a pause. If a tool reports the session not running, call mirror_launch \
+        and check status. \
         Input tools need the Accessibility permission; capture needs Screen Recording — \
         status reports both.
+
+        \(modeNote(mode))
 
         For on-device app testing: run_on_iphone builds, installs, and launches your \
         scheme on the paired iPhone; then use the mirroring tools to operate the app \
         and verify behavior on the mirrored screen.
         """
+    }
+
+    static func modeNote(_ mode: ServeMode) -> String {
+        switch mode {
+        case .read:
+            return "This server runs in read mode: only tools that observe the phone, devices, and simulators are listed. Input and management tools need a restart with --mode input or --mode full."
+        case .input:
+            return "This server runs in input mode: observation and input tools are listed. mirror_launch, mirror_restart, recordings, Xcode builds, and device and simulator management need a restart with --mode full."
+        case .full:
+            return "This server runs in full mode: every tool is listed."
+        }
+    }
 
     public static func allTools(session: MirrorSession) -> [RegisteredTool] {
         MirroringTools.all(session: session) + XcodeToolCatalog.all()
     }
 
-    /// Builds the MCP server with every tool registered. Separated from
+    /// Builds the MCP server with the tools `mode` allows. A hidden tool is
+    /// absent from tools/list and, when called by name anyway, answers
+    /// "Unknown tool" exactly like a tool that never existed. Separated from
     /// run() so tests can start it on an in-memory transport.
-    public static func makeServer(session: MirrorSession) async -> Server {
+    public static func makeServer(session: MirrorSession, mode: ServeMode) async -> Server {
         let mirroring = MirroringTools.all(session: session)
         let xcode = XcodeToolCatalog.all()
-        let registered = mirroring + xcode
-        let byName = Dictionary(uniqueKeysWithValues: registered.map { ($0.tool.name, $0) })
-        let toolList = registered.map(\.tool)
+        let visible = (mirroring + xcode).filter { mode.allows($0.access) }
+        let byName = Dictionary(uniqueKeysWithValues: visible.map { ($0.tool.name, $0) })
+        let toolList = visible.map(\.tool)
         // Mirroring tools are strictly FIFO — interleaved gestures/captures
         // corrupt each other. Xcode/simulator tools stay concurrent.
         let mirroringNames = Set(mirroring.map(\.tool.name))
@@ -46,7 +66,7 @@ public enum MirrorMCPServer {
         let server = Server(
             name: name,
             version: version,
-            instructions: instructions,
+            instructions: instructions(mode: mode),
             capabilities: .init(tools: .init(listChanged: false))
         )
 
@@ -85,10 +105,10 @@ public enum MirrorMCPServer {
         return server
     }
 
-    public static func run() async throws {
+    public static func run(mode: ServeMode) async throws {
         let session = MirrorSession()
-        let server = await makeServer(session: session)
-        FileHandle.standardError.write(Data("\(name) \(version) ready\n".utf8))
+        let server = await makeServer(session: session, mode: mode)
+        FileHandle.standardError.write(Data("\(name) \(version) ready (mode: \(mode.rawValue))\n".utf8))
         try await server.start(transport: StdioTransport())
         await server.waitUntilCompleted()
     }

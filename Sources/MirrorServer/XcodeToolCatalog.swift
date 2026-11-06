@@ -26,7 +26,8 @@ enum XcodeToolCatalog {
                     "properties": [
                         "project_path": ["type": "string", "description": "Path to .xcodeproj/.xcworkspace or the project directory (default: current directory)"],
                     ],
-                ]
+                ],
+                access: .read
             ) { args in
                 textResult(try await XcodeTools.list(projectPath: try args.optionalString("project_path")))
             },
@@ -73,7 +74,8 @@ enum XcodeToolCatalog {
             RegisteredTool(
                 name: "devices",
                 description: "List paired physical iOS devices (devicectl) and available simulators (simctl), with names, udids, OS versions, and states.",
-                schema: ["type": "object", "properties": [:]]
+                schema: ["type": "object", "properties": [:]],
+                access: .read
             ) { _ in
                 // Each half independently: a devicectl failure must not cost
                 // the caller the simulator list, or vice versa.
@@ -195,7 +197,8 @@ enum XcodeToolCatalog {
                         "process": ["type": "string", "description": "Only entries from this process name"],
                         "predicate": ["type": "string", "description": "Additional NSPredicate, e.g. eventMessage contains \"error\""],
                     ],
-                ]
+                ],
+                access: .read
             ) { args in
                 textResult(try await XcodeTools.simLog(
                     simulator: try args.optionalString("simulator"),
@@ -539,7 +542,8 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": ["simulator": ["type": "string", "description": "Simulator UDID or name (e.g. \"iPhone 16 Pro\"). Defaults to the booted simulator"]],
-                ]
+                ],
+                access: .read
             ) { args in
                 let (udid, name) = try await XcodeTools.resolveSimulator(try args.optionalString("simulator"))
                 let output = try await XcodeTools.simctl(["listapps", udid])
@@ -553,7 +557,8 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": ["device": ["type": "string", "description": "Device name or udid (default: first paired iPhone)"]],
-                ]
+                ],
+                access: .read
             ) { args in
                 let (identifier, name) = try await XcodeTools.resolveDevice(try args.optionalString("device"))
                 let output = try await XcodeTools.devicectlText(["device", "info", "details", "--device", identifier])
@@ -566,7 +571,8 @@ enum XcodeToolCatalog {
                 schema: [
                     "type": "object",
                     "properties": ["device": ["type": "string", "description": "Device name or udid (default: first paired iPhone)"]],
-                ]
+                ],
+                access: .read
             ) { args in
                 let (identifier, name) = try await XcodeTools.resolveDevice(try args.optionalString("device"))
                 let output = try await XcodeTools.devicectlText(["device", "info", "apps", "--device", identifier])

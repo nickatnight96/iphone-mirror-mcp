@@ -9,11 +9,12 @@ import MCP
 /// gracefully (unknown tool, bad arguments).
 final class EndToEndProtocolTests: XCTestCase {
     func withConnectedClient(
+        mode: ServeMode = .full,
         session: MirrorSession = MirrorSession(),
         _ body: (Client) async throws -> Void
     ) async throws {
         let (clientTransport, serverTransport) = await InMemoryTransport.createConnectedPair()
-        let server = await MirrorMCPServer.makeServer(session: session)
+        let server = await MirrorMCPServer.makeServer(session: session, mode: mode)
         try await server.start(transport: serverTransport)
         let client = Client(name: "test-client", version: "1.0")
         _ = try await client.connect(transport: clientTransport)
@@ -96,7 +97,7 @@ final class EndToEndProtocolTests: XCTestCase {
     }
 
     func testPausedNoteAndRefusalOverProtocol() async throws {
-        try await withConnectedClient(session: Self.inUseSession()) { client in
+        try await withConnectedClient(mode: .read, session: Self.inUseSession()) { client in
             let (content, isError) = try await client.callTool(name: "status", arguments: [:])
             XCTAssertNotEqual(isError, true)
             XCTAssertEqual(content.count, 2, "status should carry the paused note as a second item")
@@ -104,7 +105,8 @@ final class EndToEndProtocolTests: XCTestCase {
                 return XCTFail("expected a text note")
             }
             XCTAssertTrue(note.contains("paused"), note)
-
+        }
+        try await withConnectedClient(mode: .full, session: Self.inUseSession()) { client in
             for (name, arguments) in [
                 ("tap", ["x": 10, "y": 10] as [String: Value]),
                 ("notification_click", [:]),
@@ -117,6 +119,62 @@ final class EndToEndProtocolTests: XCTestCase {
                 }
                 XCTAssertTrue(text.contains("paused"), "\(name): \(text)")
             }
+        }
+    }
+
+    // MARK: - Modes
+
+    func testReadModeListsOnlyReadTools() async throws {
+        try await withConnectedClient(mode: .read) { client in
+            let (tools, _) = try await client.listTools()
+            XCTAssertEqual(tools.count, 15)
+            XCTAssertTrue(tools.contains { $0.name == "screenshot" })
+            XCTAssertFalse(tools.contains { $0.name == "tap" })
+            for tool in tools {
+                XCTAssertEqual(tool.annotations.readOnlyHint, true, tool.name)
+            }
+        }
+    }
+
+    func testInputModeHidesFullTools() async throws {
+        try await withConnectedClient(mode: .input) { client in
+            let (tools, _) = try await client.listTools()
+            XCTAssertEqual(tools.count, 34)
+            XCTAssertTrue(tools.contains { $0.name == "tap" })
+            XCTAssertFalse(tools.contains { $0.name == "mirror_restart" })
+            XCTAssertFalse(tools.contains { $0.name == "run_on_iphone" })
+        }
+    }
+
+    /// A hidden tool is not merely unlisted: calling it by name is refused
+    /// the same way a tool that never existed is.
+    func testHiddenToolIsUnknownInReadMode() async throws {
+        try await withConnectedClient(mode: .read) { client in
+            let (content, isError) = try await client.callTool(name: "tap", arguments: ["x": 10, "y": 10])
+            XCTAssertEqual(isError, true)
+            guard case .text(let text, _, _)? = content.first else {
+                return XCTFail("expected text content")
+            }
+            XCTAssertTrue(text.contains("Unknown tool"), text)
+        }
+    }
+
+    func testAnnotationsTravelOverTheWire() async throws {
+        try await withConnectedClient(mode: .full) { client in
+            let (tools, _) = try await client.listTools()
+            XCTAssertEqual(tools.count, 63)
+            let byName = Dictionary(uniqueKeysWithValues: tools.map { ($0.name, $0) })
+            let screenshot = try XCTUnwrap(byName["screenshot"])
+            XCTAssertEqual(screenshot.annotations.readOnlyHint, true)
+            XCTAssertEqual(screenshot.annotations.destructiveHint, false)
+            XCTAssertEqual(screenshot.annotations.openWorldHint, false)
+            let tap = try XCTUnwrap(byName["tap"])
+            XCTAssertEqual(tap.annotations.readOnlyHint, false)
+            XCTAssertEqual(tap.annotations.destructiveHint, true)
+            XCTAssertEqual(tap.annotations.idempotentHint, false)
+            let build = try XCTUnwrap(byName["xcode_build"])
+            XCTAssertEqual(build.annotations.openWorldHint, true)
+            XCTAssertEqual(build.title, "Xcode Build")
         }
     }
 }
