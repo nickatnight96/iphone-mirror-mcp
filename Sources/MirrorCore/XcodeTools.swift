@@ -128,16 +128,28 @@ public enum XcodeTools {
 
     /// Finds the built .app bundle inside derived data for a configuration.
     /// `platformSuffix` is "iphoneos" for device builds, "iphonesimulator"
-    /// for simulator builds.
+    /// for simulator builds. Prefers `<scheme>.app` (case-insensitive), then
+    /// the only .app present; several bundles with no name match is an
+    /// error, because a UI-test runner or a helper app could be picked.
     public static func builtAppPath(
-        derivedDataPath: String, configuration: String, platformSuffix: String = "iphoneos"
+        derivedDataPath: String, configuration: String, platformSuffix: String = "iphoneos",
+        scheme: String
     ) throws -> String {
         let productsDir = derivedDataPath + "/Build/Products/\(configuration)-\(platformSuffix)"
         let contents = (try? FileManager.default.contentsOfDirectory(atPath: productsDir)) ?? []
-        guard let app = contents.first(where: { $0.hasSuffix(".app") }) else {
+        let apps = contents.filter { $0.hasSuffix(".app") }.sorted()
+        if let named = apps.first(where: { $0.lowercased() == "\(scheme).app".lowercased() }) {
+            return productsDir + "/" + named
+        }
+        guard let app = apps.first else {
             throw MirrorError(
                 "No .app found in \(productsDir).",
                 remediation: "Confirm the scheme builds an iOS app target and the build succeeded.")
+        }
+        guard apps.count == 1 else {
+            throw MirrorError(
+                "Several .app bundles in \(productsDir) and none is named \(scheme).app: \(apps.joined(separator: ", ")).",
+                remediation: "Delete the derived data directory (\(derivedDataPath)) and build again, or make the scheme's product name match the scheme.")
         }
         return productsDir + "/" + app
     }
@@ -169,10 +181,20 @@ public enum XcodeTools {
         return try DevicectlDeviceList.parse(data)
     }
 
-    /// Resolves a device query (name, udid, or identifier; nil = first iPhone)
-    /// to a devicectl-usable identifier.
+    /// Resolves a device query (name, udid, or identifier; nil = first paired
+    /// iPhone) to a devicectl-usable identifier.
     public static func resolveDevice(_ query: String?) async throws -> (identifier: String, name: String) {
-        let devices = try await physicalDevices()
+        try resolveDevice(query, in: try await physicalDevices())
+    }
+
+    /// The pure half of resolveDevice. devicectl lists every device the Mac
+    /// has seen, iPads and Apple Watches included, so the default is the
+    /// first paired iPhone rather than the first row. `deviceType` is
+    /// "iPhone" in real output and "iPhone16,2" in older fixtures; the
+    /// prefix covers both.
+    static func resolveDevice(
+        _ query: String?, in devices: [DevicectlDeviceList.Device]
+    ) throws -> (identifier: String, name: String) {
         guard !devices.isEmpty else {
             throw MirrorError(
                 "No physical iOS devices are paired with this Mac.",
@@ -183,8 +205,14 @@ public enum XcodeTools {
             return (id, device.deviceProperties?.name ?? id)
         }
         guard let query else {
-            guard let first = devices.compactMap(identity).first else {
-                throw MirrorError("Paired devices found, but none reported a usable identifier.")
+            let iphones = devices.filter { device in
+                (device.hardwareProperties?.deviceType ?? "").hasPrefix("iPhone")
+                    && device.connectionProperties?.pairingState != "unpaired"
+            }
+            guard let first = iphones.compactMap(identity).first else {
+                throw MirrorError(
+                    "No paired iPhone found. devicectl listed:\n\(DevicectlDeviceList.describe(devices))",
+                    remediation: "Pass device=<name or udid> to pick one of these, or pair the iPhone in Xcode (Window → Devices and Simulators) and trust this computer on the phone.")
             }
             return first
         }
@@ -317,7 +345,7 @@ public enum XcodeTools {
             throw MirrorError("Build failed:\n\(build.description)")
         }
 
-        let appPath = try builtAppPath(derivedDataPath: derivedData, configuration: configuration)
+        let appPath = try builtAppPath(derivedDataPath: derivedData, configuration: configuration, scheme: scheme)
         let bundleID = try bundleIdentifier(ofApp: appPath)
         _ = try await deviceInstall(device: identifier, appPath: appPath)
         let launchOutput = try await deviceLaunch(
@@ -383,7 +411,7 @@ public enum XcodeTools {
 
         let appPath = try builtAppPath(
             derivedDataPath: derivedData, configuration: configuration,
-            platformSuffix: "iphonesimulator")
+            platformSuffix: "iphonesimulator", scheme: scheme)
         let bundleID = try bundleIdentifier(ofApp: appPath)
         _ = try await simctl(["install", udid, appPath])
         let launchOutput = try await simctl(["launch", udid, bundleID])
