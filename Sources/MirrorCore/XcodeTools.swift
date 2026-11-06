@@ -207,7 +207,7 @@ public enum XcodeTools {
         guard let query else {
             let iphones = devices.filter { device in
                 (device.hardwareProperties?.deviceType ?? "").hasPrefix("iPhone")
-                    && device.connectionProperties?.pairingState != "unpaired"
+                    && device.connectionProperties?.pairingState == "paired"
             }
             guard let first = iphones.compactMap(identity).first else {
                 throw MirrorError(

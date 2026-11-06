@@ -47,14 +47,15 @@ public enum CLI {
     }
 
     /// The serve command's own arguments: nothing (read mode) or `--mode`
-    /// with one of the ServeMode values. A bad or missing value is a usage
-    /// error, never a fallback to some mode: a typo must not hand out phone
-    /// control.
+    /// with one of the ServeMode values, and nothing after it. A bad or
+    /// missing value is a usage error, never a fallback to some mode: a typo
+    /// must not hand out phone control.
     static func parseServe(_ arguments: [String]) -> Command {
         guard let flag = arguments.first else { return .serve(mode: .read) }
         guard flag == "--mode" else { return .unknown(flag) }
         guard let value = arguments.dropFirst().first else { return .unknown("--mode") }
         guard let mode = ServeMode(rawValue: value) else { return .unknown("--mode \(value)") }
+        guard arguments.count == 2 else { return .unknown(arguments[2]) }
         return .serve(mode: mode)
     }
 

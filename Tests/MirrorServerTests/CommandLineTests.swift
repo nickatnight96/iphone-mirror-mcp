@@ -35,6 +35,17 @@ final class CommandLineTests: XCTestCase {
         XCTAssertEqual(code, CLI.ExitCode.usage)
     }
 
+    /// Anything after the mode value is a usage error, not ignored.
+    func testTrailingArgumentsAfterModeAreUsageError() async throws {
+        let extra = ["serve", "--mode", "input", "--verbose"]
+        XCTAssertEqual(CLI.parse(extra), .unknown("--verbose"))
+        XCTAssertEqual(CLI.parse(["--mode", "full", "extra"]), .unknown("extra"))
+        // A parse that served would block this test on stdin, so run only a usage error.
+        guard case .unknown = CLI.parse(extra) else { return }
+        let code = try await CLI.run(extra)
+        XCTAssertEqual(code, CLI.ExitCode.usage)
+    }
+
     func testRecognizedCommands() {
         XCTAssertEqual(CLI.parse(["serve"]), .serve(mode: .read))
         XCTAssertEqual(CLI.parse(["--serve"]), .serve(mode: .read))

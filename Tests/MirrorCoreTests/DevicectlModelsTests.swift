@@ -91,6 +91,23 @@ final class DevicectlModelsTests: XCTestCase {
         XCTAssertEqual(try XcodeTools.resolveDevice("office ipad", in: devices).identifier, "IPAD-UDID")
     }
 
+    /// A missing or unknown pairing state is not "paired": only a phone
+    /// devicectl reports as paired is a default target.
+    func testIPhoneWithNoPairingStateIsSkipped() throws {
+        let json = """
+        {"result":{"devices":[
+          {"identifier":"unknown","connectionProperties":{},
+           "deviceProperties":{"name":"Unknown iPhone"},
+           "hardwareProperties":{"udid":"UNKNOWN-UDID","deviceType":"iPhone","platform":"iOS"}},
+          {"identifier":"mine","connectionProperties":{"pairingState":"paired"},
+           "deviceProperties":{"name":"My iPhone"},
+           "hardwareProperties":{"udid":"MINE-UDID","deviceType":"iPhone","platform":"iOS"}}
+        ]}}
+        """
+        let devices = try DevicectlDeviceList.parse(Data(json.utf8))
+        XCTAssertEqual(try XcodeTools.resolveDevice(nil, in: devices).identifier, "MINE-UDID")
+    }
+
     func testNoPairedIPhoneIsAnError() throws {
         let devices = try DevicectlDeviceList.parse(Data(mixedFleetJSON.utf8)).filter {
             $0.hardwareProperties?.udid != "MINE-UDID"

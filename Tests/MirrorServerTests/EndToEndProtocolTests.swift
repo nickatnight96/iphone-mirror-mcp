@@ -93,7 +93,9 @@ final class EndToEndProtocolTests: XCTestCase {
             state: { .paused },
             overlay: { .inUse },
             pressResume: { XCTFail("software must not press through iPhone in Use"); return false },
-            clickResume: { XCTFail("software must not click through iPhone in Use"); return false }))
+            clickResume: { XCTFail("software must not click through iPhone in Use"); return false },
+            accessibilityGranted: { true },
+            activate: { true }))
     }
 
     func testPausedNoteAndRefusalOverProtocol() async throws {
@@ -119,6 +121,18 @@ final class EndToEndProtocolTests: XCTestCase {
                 }
                 XCTAssertTrue(text.contains("paused"), "\(name): \(text)")
             }
+        }
+    }
+
+    /// The paused note rides only on results that succeeded. An error from a
+    /// read tool while latched stays a single item.
+    func testErrorResultCarriesNoPausedNote() async throws {
+        try await withConnectedClient(mode: .read, session: Self.inUseSession()) { client in
+            let (statusContent, _) = try await client.callTool(name: "status", arguments: [:])
+            XCTAssertEqual(statusContent.count, 2, "status should set the latch and carry the note")
+            let (content, isError) = try await client.callTool(name: "find_text", arguments: [:])
+            XCTAssertEqual(isError, true)
+            XCTAssertEqual(content.count, 1, "an error result must not carry the paused note")
         }
     }
 

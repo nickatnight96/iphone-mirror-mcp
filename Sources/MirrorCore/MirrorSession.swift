@@ -18,23 +18,30 @@ public actor MirrorSession {
 
     /// The session's view of the pause machinery, injectable so the latch
     /// can be tested against a scripted bridge. `clickResume` is the one
-    /// real click at the labeled Resume button's center.
+    /// real click at the labeled Resume button's center. `accessibilityGranted`
+    /// and `activate` are the input gate's checks before its last state read.
     public struct SessionProbe: Sendable {
         public var state: @Sendable () -> MirroringState
         public var overlay: @Sendable () -> MirrorWindowBridge.PauseOverlay
         public var pressResume: @Sendable () -> Bool
         public var clickResume: @Sendable () -> Bool
+        public var accessibilityGranted: @Sendable () -> Bool
+        public var activate: @Sendable () -> Bool
 
         public init(
             state: @escaping @Sendable () -> MirroringState,
             overlay: @escaping @Sendable () -> MirrorWindowBridge.PauseOverlay,
             pressResume: @escaping @Sendable () -> Bool,
-            clickResume: @escaping @Sendable () -> Bool
+            clickResume: @escaping @Sendable () -> Bool,
+            accessibilityGranted: @escaping @Sendable () -> Bool,
+            activate: @escaping @Sendable () -> Bool
         ) {
             self.state = state
             self.overlay = overlay
             self.pressResume = pressResume
             self.clickResume = clickResume
+            self.accessibilityGranted = accessibilityGranted
+            self.activate = activate
         }
     }
 
@@ -77,7 +84,9 @@ public actor MirrorSession {
                     try? MirrorInput.tap(at: center)
                 }
                 return true
-            })
+            },
+            accessibilityGranted: { PermissionStatus.current().accessibility },
+            activate: { bridge.activate() })
     }
 
     // MARK: - State
@@ -143,9 +152,10 @@ public actor MirrorSession {
 
     /// Ensures the session can be used: app running, window present, session
     /// connected, and for input also the Accessibility permission granted and
-    /// the window frontmost. An idle pause with a labeled Resume button is
-    /// resumed once; any other pause sets the latch, after which reads
-    /// proceed (and show the overlay) and input is refused.
+    /// the window frontmost. Only input resumes: an idle pause with a labeled
+    /// Resume button is resumed once by an input call, and a read presses
+    /// nothing. Any other pause sets the latch, after which reads proceed
+    /// (and show the overlay) and input is refused.
     @discardableResult
     func ensureReady(forInput: Bool) -> MirrorError? {
         switch observeState() {
@@ -156,26 +166,31 @@ public actor MirrorSession {
         case .noWindow:
             return MirrorError.windowNotFound()
         case .paused:
-            if !pauseLatched { attemptLabeledResume() }
-            if observeState() == .paused {
-                pauseLatched = true
-                if forInput { return MirrorError.sessionPaused() }
+            if forInput {
+                if !pauseLatched { attemptLabeledResume() }
+                if observeState() == .paused {
+                    pauseLatched = true
+                    return MirrorError.sessionPaused()
+                }
             }
         case .connected:
             break
         }
         if forInput {
-            guard PermissionStatus.current().accessibility else {
+            guard probe.accessibilityGranted() else {
                 return MirrorError.accessibilityDenied()
             }
             // Input posted while another app is frontmost is silently
             // dropped by iPhone Mirroring — failing here is the only honest
             // outcome when activation does not take.
-            guard bridge.activate() else {
+            guard probe.activate() else {
                 return MirrorError(
                     "Could not bring the iPhone Mirroring window to the front; input would be silently dropped.",
                     remediation: "Click the iPhone Mirroring window once to focus it. If macOS prompted for the Automation (System Events) permission, grant it to the app hosting this server, then retry.")
             }
+            // A person can pick up the phone while the checks above run, so
+            // the state is read once more after them.
+            guard observeState() == .connected else { return MirrorError.sessionPaused() }
         }
         return nil
     }
@@ -487,7 +502,8 @@ public actor MirrorSession {
     /// Paste render time before the user's clipboard is restored.
     static let pasteSettleUs: UInt32 = 700_000
     /// How long a bridged copy gets to land on the Mac pasteboard.
-    static let copyWaitSeconds: TimeInterval = 2
+    /// Universal Clipboard sync can be slow; too short a wait reports a false "nothing was copied".
+    static let copyWaitSeconds: TimeInterval = 4
 
     /// Pastes text into the focused phone field via the bridged pasteboard
     /// (⌘V) — the only full-fidelity path: emoji/CJK/accents survive, and
@@ -541,7 +557,7 @@ public actor MirrorSession {
             }
         }
         try await bridge.launchApp()
-        _ = ensureReady(forInput: false)  // resumes only an idle pause with a labeled Resume
+        _ = ensureReady(forInput: false)  // a read: records the state, presses nothing
         return status()
     }
 
