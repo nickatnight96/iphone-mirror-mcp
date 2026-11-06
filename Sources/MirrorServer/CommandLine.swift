@@ -11,7 +11,7 @@ import MirrorCore
 /// binary works before wiring it into a client and hoping.
 public enum CLI {
     public enum Command: Equatable {
-        case serve
+        case serve(mode: ServeMode)
         case doctor
         case version
         case help
@@ -29,10 +29,12 @@ public enum CLI {
 
     /// Parses arguments *excluding* the executable path.
     public static func parse(_ arguments: [String]) -> Command {
-        guard let first = arguments.first else { return .serve }
+        guard let first = arguments.first else { return .serve(mode: .read) }
         switch first {
         case "serve", "--serve":
-            return .serve
+            return parseServe(Array(arguments.dropFirst()))
+        case "--mode":
+            return parseServe(arguments)
         case "doctor", "--doctor":
             return .doctor
         case "--version", "-v", "version":
@@ -42,6 +44,18 @@ public enum CLI {
         default:
             return .unknown(first)
         }
+    }
+
+    /// The serve command's own arguments: nothing (read mode) or `--mode`
+    /// with one of the ServeMode values. A bad or missing value is a usage
+    /// error, never a fallback to some mode: a typo must not hand out phone
+    /// control.
+    static func parseServe(_ arguments: [String]) -> Command {
+        guard let flag = arguments.first else { return .serve(mode: .read) }
+        guard flag == "--mode" else { return .unknown(flag) }
+        guard let value = arguments.dropFirst().first else { return .unknown("--mode") }
+        guard let mode = ServeMode(rawValue: value) else { return .unknown("--mode \(value)") }
+        return .serve(mode: mode)
     }
 
     public static var versionLine: String {
@@ -56,13 +70,29 @@ public enum CLI {
         Mirroring app, and runs Xcode builds/tests on simulators and devices.
 
         USAGE
-          iphone-mirror-mcp              Start the MCP server on stdio (default).
-                                         MCP clients invoke the binary this way;
-                                         run by hand it waits silently for input.
+          iphone-mirror-mcp              Start the MCP server on stdio (default,
+                                         read mode). MCP clients invoke the binary
+                                         this way; run by hand it waits silently
+                                         for input.
+          iphone-mirror-mcp --mode MODE  Same, with the tool set MODE picks: read
+                                         (default), input, or full. See MODES.
           iphone-mirror-mcp doctor       Check permissions and the mirroring
                                          session, then exit. Run this FIRST.
           iphone-mirror-mcp --version    Print the version and exit.
           iphone-mirror-mcp --help       Print this help and exit.
+
+        MODES
+          The mode decides which tools the server lists. A hidden tool is absent
+          from tools/list and answers "Unknown tool" if called anyway. Changing
+          the mode takes a restart; a model cannot switch it.
+
+            read    status, screenshot, OCR, find, wait, notifications, and the
+                    Xcode, device, and simulator listings. Nothing is sent to
+                    the phone. This is the default.
+            input   read plus taps, swipes, typing, keys, navigation, batch, and
+                    notification_click.
+            full    every tool: mirror_launch, mirror_restart, recordings, Xcode
+                    builds and tests, device and simulator management.
 
         SETUP
           This server needs macOS permissions granted to whichever app LAUNCHES
@@ -77,10 +107,11 @@ public enum CLI {
           input is actually being delivered.
 
         CONNECTING A CLIENT
-          Any MCP client that speaks stdio works. Point it at this binary with
-          no arguments, for example:
+          Any MCP client that speaks stdio works. Point it at this binary, with
+          --mode as the arguments when the model should do more than look:
 
-            {"mcpServers": {"iphone-mirror": {"command": "/path/to/iphone-mirror-mcp"}}}
+            {"mcpServers": {"iphone-mirror": {"command": "/path/to/iphone-mirror-mcp",
+                                              "args": ["--mode", "input"]}}}
 
           See docs/getting-started.md for per-client configuration.
 
@@ -95,8 +126,8 @@ public enum CLI {
     /// returns when the client disconnects.
     public static func run(_ arguments: [String]) async throws -> Int32 {
         switch parse(arguments) {
-        case .serve:
-            try await MirrorMCPServer.run(mode: .read)
+        case .serve(let mode):
+            try await MirrorMCPServer.run(mode: mode)
             return ExitCode.ok
 
         case .version:
