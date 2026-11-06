@@ -27,13 +27,15 @@ to their args. This is a breaking change and the next release should be
 
 ### Changed
 - The server resumes only an idle pause whose overlay shows a button labeled
-  Resume (one AX press, then one real click at that button). It never clicks
-  past "iPhone in Use" or an overlay with no labeled button, and no longer
-  blind-clicks the window center or the 65 percent point. After any other
-  pause it refuses input, `mirror_launch`, `mirror_restart`, `launch_app`,
-  `open_url`, `notification_click` and `batch` until a person resumes the
-  session (the server sees `connected` again) or the server restarts. Read
-  tools still work and add a note that the session is paused.
+  Resume (one AX press, then one real click at that button), and only when an
+  input tool runs. Read tools never click, so an idle pause is resumed only by
+  an input tool. The server never clicks past "iPhone in Use" or an overlay
+  with no labeled button, and no longer blind-clicks the window center or the
+  65 percent point. After any other pause, or a labeled Resume press that
+  does not take, it refuses input, `mirror_launch`, `mirror_restart`,
+  `launch_app`, `open_url`, `notification_click` and `batch` until a person
+  resumes the session (the server sees `connected` again) or the server
+  restarts. Read tools still work and add a note that the session is paused.
 - `launch_app` and `open_url` run every keystroke through the same readiness
   check as the standalone input tools.
 

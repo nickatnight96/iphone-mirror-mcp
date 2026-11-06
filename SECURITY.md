@@ -28,9 +28,11 @@ trust boundary is the *client*, not this server.
 - **The phone is the kill switch.** Picking up or unlocking the iPhone pauses
   the session immediately, and resuming requires it locked again. That is a
   genuine physical control and the server does not override it: it clicks
-  Resume only on an idle pause whose button is labeled Resume. It never clicks
-  past "iPhone in Use" or an overlay it cannot read, and once it has seen such
-  a pause it refuses all input, `mirror_launch`, `mirror_restart`,
+  Resume only on an idle pause whose button is labeled Resume, and only when
+  an input tool runs. Read tools never click, so an idle pause is resumed
+  only by an input tool. It never clicks past "iPhone in Use" or an overlay it
+  cannot read. Once it has seen such a pause, or a labeled Resume press that
+  does not take, it refuses all input, `mirror_launch`, `mirror_restart`,
   `notification_click` and `batch` until a person resumes the session or the
   server restarts.
 - **Prompt injection reaches the phone.** Content the model reads off the

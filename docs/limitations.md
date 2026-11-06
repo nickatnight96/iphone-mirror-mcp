@@ -31,6 +31,13 @@ Resuming needs the phone locked again. There is no way around it, and it means
 any long-running automation is interruptible by whoever is holding the phone —
 which is arguably the right security property.
 
+The server resumes a pause only when the overlay shows a button labeled
+Resume. In a live test the idle pause overlay was a bare AXGroup with no
+labeled button. So the server often does not resume an idle pause, and a
+person must resume it: lock the iPhone, or click Resume in the iPhone
+Mirroring window. This is the intended fail-closed behavior. The server does
+not click a button it cannot read.
+
 ## No accessibility tree from the phone
 
 Mirroring streams video, not a view hierarchy. OCR plus template matching *is*

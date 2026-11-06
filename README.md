@@ -42,7 +42,7 @@ permissions end to end, and prints the exact config for your client.
 Then, for Claude Code:
 
 ```sh
-claude mcp add --scope user iphone-mirror -- ~/.local/bin/iphone-mirror-mcp --mode full
+claude mcp add --scope user iphone-mirror -- ~/.local/bin/iphone-mirror-mcp --mode input
 ```
 
 Or for any other MCP client:
@@ -52,7 +52,7 @@ Or for any other MCP client:
   "mcpServers": {
     "iphone-mirror": {
       "command": "/Users/YOU/.local/bin/iphone-mirror-mcp",
-      "args": ["--mode", "full"]
+      "args": ["--mode", "input"]
     }
   }
 }
