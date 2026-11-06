@@ -61,7 +61,20 @@ public enum MirrorMCPServer {
             let args = ToolArgs(params.arguments ?? [:])
             do {
                 if mirroringNames.contains(params.name) {
-                    return try await serializer.run { try await tool.handler(args) }
+                    let result = try await serializer.run { try await tool.handler(args) }
+                    // A tool that ran while the pause latch is set (reads do)
+                    // says so, because a caller that only looks at
+                    // screenshots has no other way to learn why its next
+                    // tap will be refused. Result.content is immutable, so
+                    // the result is rebuilt with one more text item.
+                    if result.isError != true, await session.pauseLatched {
+                        return CallTool.Result(
+                            content: result.content + [.text(text: MirrorSession.pausedNote, annotations: nil, _meta: nil)],
+                            structuredContent: result.structuredContent,
+                            isError: result.isError,
+                            _meta: result._meta)
+                    }
+                    return result
                 }
                 return try await tool.handler(args)
             } catch {

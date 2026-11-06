@@ -14,7 +14,37 @@ import Foundation
 /// bounds — so a window that moved between screenshot and tap still receives
 /// the tap at the right spot on the phone screen.
 public actor MirrorSession {
-    let bridge = MirrorWindowBridge()
+    let bridge: MirrorWindowBridge
+
+    /// The session's view of the pause machinery, injectable so the latch
+    /// can be tested against a scripted bridge. `clickResume` is the one
+    /// real click at the labeled Resume button's center.
+    public struct SessionProbe: Sendable {
+        public var state: @Sendable () -> MirroringState
+        public var overlay: @Sendable () -> MirrorWindowBridge.PauseOverlay
+        public var pressResume: @Sendable () -> Bool
+        public var clickResume: @Sendable () -> Bool
+
+        public init(
+            state: @escaping @Sendable () -> MirroringState,
+            overlay: @escaping @Sendable () -> MirrorWindowBridge.PauseOverlay,
+            pressResume: @escaping @Sendable () -> Bool,
+            clickResume: @escaping @Sendable () -> Bool
+        ) {
+            self.state = state
+            self.overlay = overlay
+            self.pressResume = pressResume
+            self.clickResume = clickResume
+        }
+    }
+
+    private let probe: SessionProbe
+
+    /// Set when a pause was seen that software must not resume ("iPhone in
+    /// Use", an unlabeled overlay, or a labeled Resume that did not take).
+    /// While set, every input path is refused. Cleared only when the session
+    /// is observed `.connected` again, which takes a person.
+    public private(set) var pauseLatched = false
 
     /// Pixel size of the most recent screenshot; established lazily.
     private var lastImageSize: CGSize?
@@ -30,7 +60,25 @@ public actor MirrorSession {
     /// resume failed that had actually worked.
     static let resumeSettleUs: UInt32 = 3_000_000
 
-    public init() {}
+    /// The default probe wraps the real bridge; tests pass a scripted one.
+    public init(probe: SessionProbe? = nil) {
+        let bridge = MirrorWindowBridge()
+        self.bridge = bridge
+        self.probe = probe ?? SessionProbe(
+            state: { bridge.state() },
+            overlay: { bridge.pauseOverlay() },
+            pressResume: { bridge.pressResumeButton() },
+            clickResume: {
+                // Only a labeled Resume button has a center; any other
+                // overlay yields nil and nothing is clicked.
+                guard let center = bridge.resumeButtonCenter() else { return false }
+                bridge.activate()
+                if !MirrorWindowBridge.systemEventsClick(at: center) {
+                    try? MirrorInput.tap(at: center)
+                }
+                return true
+            })
+    }
 
     // MARK: - State
 
@@ -49,7 +97,7 @@ public actor MirrorSession {
             orientation = info.bounds.height >= info.bounds.width ? "portrait" : "landscape"
         }
         return Status(
-            state: bridge.state(),
+            state: observeState(),
             windowBounds: info?.bounds,
             orientation: orientation,
             permissions: PermissionStatus.current(),
@@ -58,6 +106,7 @@ public actor MirrorSession {
     }
 
     public func launchMirroring() async throws -> Status {
+        try requireSessionNotPaused()
         try await bridge.launchApp()
         _ = ensureReady(forInput: false)
         return status()
@@ -65,12 +114,41 @@ public actor MirrorSession {
 
     // MARK: - Readiness
 
+    /// Every state read goes through here so the latch stays current:
+    /// `.connected` clears it (a person resumed the session), and a pause
+    /// whose overlay is not an idle Resume button sets it.
+    private func observeState() -> MirroringState {
+        let state = probe.state()
+        switch state {
+        case .connected:
+            pauseLatched = false
+        case .paused:
+            if probe.overlay() != .resumeButton { pauseLatched = true }
+        case .notRunning, .noWindow:
+            break
+        }
+        return state
+    }
+
+    /// Refuses the software paths that could reconnect a paused session:
+    /// the relaunches, notification clicks, and batches.
+    public func requireSessionNotPaused() throws {
+        _ = observeState()
+        if pauseLatched { throw MirrorError.sessionPaused() }
+    }
+
+    /// Appended to tool results while the latch is set, so a caller that
+    /// only looks at screenshots learns why its next tap will be refused.
+    public static let pausedNote = "Note: the mirroring session is paused and this server will not resume it. Input tools are refused until a person resumes the session (lock the iPhone and leave it near the Mac, or click Resume in the iPhone Mirroring window)."
+
     /// Ensures the session can be used: app running, window present, session
-    /// connected (auto-dismissing pause overlays), and — for input — the
-    /// Accessibility permission granted and the window frontmost.
+    /// connected, and for input also the Accessibility permission granted and
+    /// the window frontmost. An idle pause with a labeled Resume button is
+    /// resumed once; any other pause sets the latch, after which reads
+    /// proceed (and show the overlay) and input is refused.
     @discardableResult
     func ensureReady(forInput: Bool) -> MirrorError? {
-        switch bridge.state() {
+        switch observeState() {
         case .notRunning:
             return MirrorError(
                 "iPhone Mirroring is not running.",
@@ -78,11 +156,10 @@ public actor MirrorSession {
         case .noWindow:
             return MirrorError.windowNotFound()
         case .paused:
-            attemptResume()
-            if bridge.state() != .connected {
-                return MirrorError(
-                    "The mirroring session is paused and could not be resumed automatically.",
-                    remediation: "Make sure the iPhone is locked and not in use, then click Resume in the iPhone Mirroring window.")
+            if !pauseLatched { attemptLabeledResume() }
+            if observeState() == .paused {
+                pauseLatched = true
+                if forInput { return MirrorError.sessionPaused() }
             }
         case .connected:
             break
@@ -103,52 +180,20 @@ public actor MirrorSession {
         return nil
     }
 
-    /// Tries the AX press first, then a real HID click. AXUIElementPerformAction
-    /// can return .success while the overlay ignores the press, so success is
-    /// judged ONLY by the session state afterwards — never by the AX return
-    /// value.
-    private func attemptResume() {
-        if bridge.pressResumeButton() {
+    /// Resumes an idle pause: the AX press on the labeled Resume button, then
+    /// one real click at that button's center. AXUIElementPerformAction can
+    /// return .success while the overlay ignores the press, so success is
+    /// judged ONLY by the session state afterwards, never by the AX return
+    /// value. No blind clicks: an overlay with no labeled Resume button is
+    /// never clicked, whatever renders where the button used to be.
+    private func attemptLabeledResume() {
+        if probe.pressResume() {
             usleep(Self.resumeSettleUs)
-            if bridge.state() == .connected { return }
+            if observeState() == .connected { return }
         }
-        // AX press missing or not honored: real click at the button.
-        if let center = bridge.resumeButtonCenter() {
-            bridge.activate()
-            if !MirrorWindowBridge.systemEventsClick(at: center) {
-                try? MirrorInput.tap(at: center)
-            }
+        if probe.clickResume() {
             usleep(Self.resumeSettleUs)
-            if bridge.state() == .connected { return }
         }
-        // The overlay often exposes NO AX button at all (observed live: a
-        // single bare AXGroup) — but the dismiss control still renders at a
-        // predictable spot: the "Resume" variant at the window center, the
-        // "iPhone in Use → Connect" variant at ~65% height. Click each in
-        // turn, re-checking paused right before every click so a session
-        // that resumed on its own doesn't take a stray tap on the live
-        // phone screen.
-        for clickPoint in Self.pauseOverlayClickPoints(for: bridge.windowInfo()?.bounds) {
-            guard bridge.state() == .paused else { return }
-            bridge.activate()
-            if !MirrorWindowBridge.systemEventsClick(at: clickPoint) {
-                try? MirrorInput.tap(at: clickPoint)
-            }
-            usleep(Self.resumeSettleUs)
-            if bridge.state() == .connected { return }
-        }
-    }
-
-    /// Where to click to dismiss a pause overlay that exposes no AX button:
-    /// the Resume button renders at the window center; the "iPhone in Use"
-    /// overlay's Connect button renders at ~65% of the window height
-    /// (both observed live 2026-08-12/13).
-    static func pauseOverlayClickPoints(for bounds: CGRect?) -> [CGPoint] {
-        guard let bounds else { return [] }
-        return [
-            CGPoint(x: bounds.midX, y: bounds.midY),
-            CGPoint(x: bounds.midX, y: bounds.origin.y + bounds.height * 0.65),
-        ]
     }
 
     // MARK: - Coordinate mapping
@@ -480,8 +525,11 @@ public actor MirrorSession {
 
     /// Full mirroring-app restart: the only cure for the ZOMBIE state (video
     /// streams but every input is silently dropped — a wedged gesture stream
-    /// can cause it). Quit, wait for exit, relaunch, resume.
+    /// can cause it). Quit, wait for exit, relaunch. Refused while the pause
+    /// latch is set: the relaunch is the one software path that could
+    /// reconnect a session a person paused.
     public func restartMirroring() async throws -> Status {
+        try requireSessionNotPaused()
         if let app = bridge.findProcess() {
             app.terminate()
             for _ in 0..<10 where bridge.findProcess() != nil {
@@ -493,7 +541,7 @@ public actor MirrorSession {
             }
         }
         try await bridge.launchApp()
-        _ = ensureReady(forInput: false)  // auto-resume if it comes up paused
+        _ = ensureReady(forInput: false)  // resumes only an idle pause with a labeled Resume
         return status()
     }
 
@@ -540,7 +588,7 @@ public actor MirrorSession {
         report.screenRecording = permissions.screenRecording
         report.postEventAccess = PermissionStatus.postEventAccess()
         report.automation = PermissionStatus.automationForSystemEvents()
-        report.sessionState = bridge.state().rawValue
+        report.sessionState = observeState().rawValue
 
         if let info = bridge.windowInfo() {
             let b = info.bounds
@@ -565,7 +613,7 @@ public actor MirrorSession {
                 }
             }
 
-            if report.accessibility, bridge.state() == .connected {
+            if report.accessibility, observeState() == .connected {
                 let center = CGPoint(x: b.midX, y: b.midY)
                 bridge.activate()
                 do {
@@ -611,18 +659,20 @@ public actor MirrorSession {
     public func appSwitcher() async throws { try await systemAction("App Switcher") }
     public func spotlight() async throws { try await systemAction("Spotlight") }
 
-    /// Launches an iPhone app via Spotlight: open, type name, Return.
+    /// Launches an iPhone app via Spotlight: open, type name, Return. Every
+    /// step goes through the session's own input methods so each one passes
+    /// the readiness check; a pause between steps stops the flow.
     public func launchApp(named name: String) async throws {
         try await spotlight()
         usleep(Self.spotlightAppearanceUs)
-        let skipped = try MirrorInput.typeText(name)
+        let skipped = try await typeText(name, submit: false)
         guard skipped.isEmpty else {
             throw MirrorError(
                 "App name contains characters that cannot be typed via the mirrored keyboard: \(skipped)",
                 remediation: "Use the app's ASCII name, or navigate to it manually via screenshots and taps.")
         }
         usleep(Self.searchResultsUs)
-        try MirrorInput.pressKey(keyCode: 36)  // Return launches top hit
+        try await pressKey(spec: "return")  // Return launches top hit
     }
 
     /// Opens a URL: launch Safari, focus the address bar (⌘L works through
@@ -630,14 +680,14 @@ public actor MirrorSession {
     public func openURL(_ url: String) async throws {
         try await launchApp(named: "Safari")
         usleep(Self.safariLoadUs)
-        try MirrorInput.pressKey(keyCode: 0x25, flags: .maskCommand)  // ⌘L
+        try await pressKey(spec: "cmd+l")
         usleep(Self.addressBarUs)
-        let skipped = try MirrorInput.typeText(url)
+        let skipped = try await typeText(url, submit: false)
         guard skipped.isEmpty else {
             throw MirrorError("URL contains untypeable characters: \(skipped)")
         }
         usleep(Self.preReturnUs)
-        try MirrorInput.pressKey(keyCode: 36)
+        try await pressKey(spec: "return")
     }
 
     // MARK: - OCR helpers

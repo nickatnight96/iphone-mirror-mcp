@@ -9,10 +9,11 @@ import MCP
 /// gracefully (unknown tool, bad arguments).
 final class EndToEndProtocolTests: XCTestCase {
     func withConnectedClient(
+        session: MirrorSession = MirrorSession(),
         _ body: (Client) async throws -> Void
     ) async throws {
         let (clientTransport, serverTransport) = await InMemoryTransport.createConnectedPair()
-        let server = await MirrorMCPServer.makeServer(session: MirrorSession())
+        let server = await MirrorMCPServer.makeServer(session: session)
         try await server.start(transport: serverTransport)
         let client = Client(name: "test-client", version: "1.0")
         _ = try await client.connect(transport: clientTransport)
@@ -80,6 +81,42 @@ final class EndToEndProtocolTests: XCTestCase {
             }
             XCTAssertTrue(text.contains("Session:"), text)
             XCTAssertTrue(text.contains("Accessibility"), text)
+        }
+    }
+
+    /// A session that is paused with "iPhone in Use" on screen. A screenshot
+    /// needs a real window and Screen Recording, so the paused note is
+    /// checked on status.
+    static func inUseSession() -> MirrorSession {
+        MirrorSession(probe: MirrorSession.SessionProbe(
+            state: { .paused },
+            overlay: { .inUse },
+            pressResume: { XCTFail("software must not press through iPhone in Use"); return false },
+            clickResume: { XCTFail("software must not click through iPhone in Use"); return false }))
+    }
+
+    func testPausedNoteAndRefusalOverProtocol() async throws {
+        try await withConnectedClient(session: Self.inUseSession()) { client in
+            let (content, isError) = try await client.callTool(name: "status", arguments: [:])
+            XCTAssertNotEqual(isError, true)
+            XCTAssertEqual(content.count, 2, "status should carry the paused note as a second item")
+            guard case .text(let note, _, _)? = content.last else {
+                return XCTFail("expected a text note")
+            }
+            XCTAssertTrue(note.contains("paused"), note)
+
+            for (name, arguments) in [
+                ("tap", ["x": 10, "y": 10] as [String: Value]),
+                ("notification_click", [:]),
+                ("batch", ["steps": [["tool": "home"]]]),
+            ] {
+                let (content, isError) = try await client.callTool(name: name, arguments: arguments)
+                XCTAssertEqual(isError, true, name)
+                guard case .text(let text, _, _)? = content.first else {
+                    return XCTFail("\(name): expected text content")
+                }
+                XCTAssertTrue(text.contains("paused"), "\(name): \(text)")
+            }
         }
     }
 }

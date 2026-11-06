@@ -388,7 +388,7 @@ enum MirroringTools {
 
             RegisteredTool(
                 name: "mirror_restart",
-                description: "Fully restart the iPhone Mirroring app: quit, relaunch, resume. THE recovery for a zombie session — video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way.",
+                description: "Fully restart the iPhone Mirroring app: quit, relaunch. THE recovery for a zombie session — video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way. Refused while the session is paused by a person (iPhone in use).",
                 schema: ["type": "object", "properties": [:]]
             ) { _ in
                 let status = try await session.restartMirroring()
@@ -546,6 +546,7 @@ enum MirroringTools {
                     "properties": ["index": ["type": "number", "description": "Banner index (default 0 = topmost)"]],
                 ]
             ) { args in
+                try await session.requireSessionNotPaused()
                 let banner = try NotificationBridge.click(index: try args.int("index", default: 0))
                 return textResult("Clicked banner: \(banner.lines.joined(separator: " — ")). Take a screenshot to see what opened.")
             },
@@ -572,6 +573,7 @@ enum MirroringTools {
                     "required": ["steps"],
                 ]
             ) { args in
+                try await session.requireSessionNotPaused()
                 let steps = try args.objectArray("steps")
                 guard !steps.isEmpty else { throw MirrorError("The batch has no steps.") }
                 guard steps.count <= 30 else { throw MirrorError("Too many steps (\(steps.count)); max 30 per batch.") }
