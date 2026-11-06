@@ -126,15 +126,26 @@ public enum MirrorCapture {
     ) throws -> (process: Process, path: String) {
         let path = outputPath ?? NSTemporaryDirectory()
             + "iphone-mirror-recording-\(Int(Date().timeIntervalSince1970)).mov"
+        let process = makeRecordingProcess(windowInfo: windowInfo, path: path)
+        do { try process.run() } catch {
+            throw MirrorError("Could not start screencapture: \(error)")
+        }
+        return (process, path)
+    }
+
+    /// The configured but not yet started recording process. stdin and
+    /// stdout go to the null device: a child that inherits them shares the
+    /// MCP stdio channel. stderr stays inherited (the server's log channel;
+    /// an undrained Pipe can block a long recording).
+    static func makeRecordingProcess(windowInfo: MirrorWindowInfo, path: String) -> Process {
         let b = windowInfo.bounds
         let region = "\(Int(b.origin.x)),\(Int(b.origin.y)),\(Int(b.width)),\(Int(b.height))"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         process.arguments = ["-v", "-R", region, "-x", path]
-        do { try process.run() } catch {
-            throw MirrorError("Could not start screencapture: \(error)")
-        }
-        return (process, path)
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        return process
     }
 
     /// Records the window region to a .mov via `screencapture -v` for a fixed
