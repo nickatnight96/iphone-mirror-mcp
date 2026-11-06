@@ -23,12 +23,52 @@ final class Phase1FeatureTests: XCTestCase {
             atPath: simProducts + "/Demo.app", withIntermediateDirectories: true)
 
         let found = try XcodeTools.builtAppPath(
-            derivedDataPath: root, configuration: "Debug", platformSuffix: "iphonesimulator")
+            derivedDataPath: root, configuration: "Debug", platformSuffix: "iphonesimulator", scheme: "Demo")
         XCTAssertTrue(found.hasSuffix("Debug-iphonesimulator/Demo.app"))
 
         // The device suffix must NOT find the simulator build.
         XCTAssertThrowsError(try XcodeTools.builtAppPath(
-            derivedDataPath: root, configuration: "Debug"))
+            derivedDataPath: root, configuration: "Debug", scheme: "Demo"))
+    }
+
+    /// A UI-test scheme leaves DemoUITests-Runner.app next to Demo.app, and
+    /// directory order put the runner first. The scheme's own bundle wins.
+    func testBuiltAppPathPrefersSchemeNamedBundle() throws {
+        let root = NSTemporaryDirectory() + "phase1-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let products = root + "/Build/Products/Debug-iphoneos"
+        for bundle in ["DemoUITests-Runner.app", "Demo.app"] {
+            try FileManager.default.createDirectory(
+                atPath: products + "/" + bundle, withIntermediateDirectories: true)
+        }
+
+        let found = try XcodeTools.builtAppPath(derivedDataPath: root, configuration: "Debug", scheme: "Demo")
+        XCTAssertTrue(found.hasSuffix("Debug-iphoneos/Demo.app"), found)
+        // Case-insensitive: xcodebuild preserves the target's case, callers may not.
+        let lowered = try XcodeTools.builtAppPath(derivedDataPath: root, configuration: "Debug", scheme: "demo")
+        XCTAssertTrue(lowered.hasSuffix("Debug-iphoneos/Demo.app"), lowered)
+    }
+
+    func testBuiltAppPathRejectsAmbiguousBundles() throws {
+        let root = NSTemporaryDirectory() + "phase1-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let products = root + "/Build/Products/Debug-iphoneos"
+        for bundle in ["Alpha.app", "Beta.app"] {
+            try FileManager.default.createDirectory(
+                atPath: products + "/" + bundle, withIntermediateDirectories: true)
+        }
+
+        XCTAssertThrowsError(try XcodeTools.builtAppPath(
+            derivedDataPath: root, configuration: "Debug", scheme: "Gamma")) { error in
+            let message = (error as? MirrorError)?.message ?? ""
+            XCTAssertTrue(message.contains("Alpha.app"), "error should name the candidates: \(message)")
+            XCTAssertTrue(message.contains("Beta.app"), message)
+        }
+        // One bundle and no name match still resolves: the scheme's product
+        // name may legitimately differ from the scheme.
+        try FileManager.default.removeItem(atPath: products + "/Beta.app")
+        let only = try XcodeTools.builtAppPath(derivedDataPath: root, configuration: "Debug", scheme: "Gamma")
+        XCTAssertTrue(only.hasSuffix("Debug-iphoneos/Alpha.app"), only)
     }
 
     func testResultBundlePathAppearsInXcodebuildArguments() {

@@ -99,19 +99,77 @@ extension Value {
     }
 }
 
-/// One tool: its MCP definition plus its handler.
+/// What a tool can do. Decides which serve mode lists it and the MCP
+/// annotations it carries.
+public enum ToolAccess: Sendable {
+    /// Observes only: screenshots, OCR, listings. Nothing reaches the phone.
+    case read
+    /// Sends taps, keys, or navigation to the phone.
+    case input
+    /// Everything else: launching or restarting the mirroring app,
+    /// recordings, builds, installs, device and simulator state.
+    case full
+}
+
+/// The tool set picked on the command line (`--mode`). Each mode lists its
+/// own class and every class below it.
+public enum ServeMode: String, CaseIterable, Sendable {
+    case read, input, full
+
+    public func allows(_ access: ToolAccess) -> Bool {
+        switch access {
+        case .read: return true
+        case .input: return self != .read
+        case .full: return self == .full
+        }
+    }
+}
+
+/// One tool: its MCP definition, its access class, and its handler.
 public struct RegisteredTool: Sendable {
     public let tool: Tool
+    public let access: ToolAccess
     public let handler: @Sendable (ToolArgs) async throws -> CallTool.Result
 
+    /// `access` defaults to `.full` so a tool added without a class is hidden
+    /// from read and input mode rather than exposed by accident.
     public init(
         name: String,
         description: String,
         schema: Value,
+        access: ToolAccess = .full,
         handler: @escaping @Sendable (ToolArgs) async throws -> CallTool.Result
     ) {
-        self.tool = Tool(name: name, description: description, inputSchema: schema)
+        let title = Self.title(from: name)
+        // Input tools are not marked additive: a tap can delete anything on
+        // the phone. Only the xcodebuild tools run code from outside the
+        // server (project build phases, package resolution).
+        self.tool = Tool(
+            name: name,
+            title: title,
+            description: description,
+            inputSchema: schema,
+            annotations: Tool.Annotations(
+                title: title,
+                readOnlyHint: access == .read,
+                destructiveHint: access != .read,
+                idempotentHint: access == .read,
+                openWorldHint: Self.openWorldTools.contains(name)))
+        self.access = access
         self.handler = handler
+    }
+
+    static let openWorldTools: Set<String> = ["xcode_build", "xcode_test", "run_on_iphone", "run_on_sim"]
+
+    /// "run_on_iphone" becomes "Run On iPhone", "open_url" becomes "Open URL".
+    static func title(from name: String) -> String {
+        name.split(separator: "_").map { word -> String in
+            switch word {
+            case "iphone": return "iPhone"
+            case "url": return "URL"
+            default: return word.prefix(1).uppercased() + word.dropFirst()
+            }
+        }.joined(separator: " ")
     }
 }
 

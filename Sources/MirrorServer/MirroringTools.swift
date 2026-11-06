@@ -23,7 +23,8 @@ enum MirroringTools {
             RegisteredTool(
                 name: "status",
                 description: "Report the iPhone Mirroring session state (connected/paused/not running), window geometry, device orientation, and whether the Accessibility and Screen Recording permissions are granted. Call this first when anything misbehaves.",
-                schema: ["type": "object", "properties": [:]]
+                schema: ["type": "object", "properties": [:]],
+                access: .read
             ) { _ in
                 let status = await session.status()
                 var lines = ["Session: \(status.state.rawValue)"]
@@ -55,7 +56,8 @@ enum MirroringTools {
                     "properties": [
                         "max_width": ["type": "number", "description": "Optional: cap the returned image width in pixels (coordinates stay full-resolution)"],
                     ],
-                ]
+                ],
+                access: .read
             ) { args in
                 let maxWidth = try args.optionalInt("max_width")
                 let shot = try await session.screenshot(maxWidth: maxWidth)
@@ -76,7 +78,8 @@ enum MirroringTools {
                         "expect_timeout_seconds": ["type": "number", "description": "How long to wait for expect (default 10)"],
                     ]) { a, _ in a }),
                     "required": ["x", "y"],
-                ]
+                ],
+                access: .input
             ) { args in
                 let expect = try args.optionalString("expect")
                 try await session.tap(
@@ -92,7 +95,8 @@ enum MirroringTools {
             RegisteredTool(
                 name: "double_tap",
                 description: "Double-tap the iPhone screen (zoom, text selection). \(coordinateNote)",
-                schema: ["type": "object", "properties": .object(xyProperties), "required": ["x", "y"]]
+                schema: ["type": "object", "properties": .object(xyProperties), "required": ["x", "y"]],
+                access: .input
             ) { args in
                 try await session.doubleTap(x: try args.double("x"), y: try args.double("y"))
                 return textResult("Double-tapped.")
@@ -108,7 +112,8 @@ enum MirroringTools {
                         "duration_ms": ["type": "number", "description": "Hold duration, default 600"],
                     ],
                     "required": ["x", "y"],
-                ]
+                ],
+                access: .input
             ) { args in
                 try await session.longPress(
                     x: try args.double("x"), y: try args.double("y"),
@@ -119,7 +124,8 @@ enum MirroringTools {
             RegisteredTool(
                 name: "swipe",
                 description: "Swipe/scroll with a trackpad-style gesture — content follows the finger (swipe up = scroll down the page). Fast swipes flick with momentum. Use drag instead for moving icons or sliders. \(coordinateNote)",
-                schema: ["type": "object", "properties": .object(swipeProperties), "required": ["from_x", "from_y", "to_x", "to_y"]]
+                schema: ["type": "object", "properties": .object(swipeProperties), "required": ["from_x", "from_y", "to_x", "to_y"]],
+                access: .input
             ) { args in
                 try await session.swipe(
                     fromX: try args.double("from_x"), fromY: try args.double("from_y"),
@@ -131,7 +137,8 @@ enum MirroringTools {
             RegisteredTool(
                 name: "drag",
                 description: "Sustained press-and-drag (rearrange icons, sliders, drag-and-drop) — distinct from swipe, which scrolls. \(coordinateNote)",
-                schema: ["type": "object", "properties": .object(swipeProperties), "required": ["from_x", "from_y", "to_x", "to_y"]]
+                schema: ["type": "object", "properties": .object(swipeProperties), "required": ["from_x", "from_y", "to_x", "to_y"]],
+                access: .input
             ) { args in
                 try await session.drag(
                     fromX: try args.double("from_x"), fromY: try args.double("from_y"),
@@ -150,7 +157,8 @@ enum MirroringTools {
                         "submit": ["type": "boolean", "description": "Press Return after typing (default false)"],
                     ],
                     "required": ["text"],
-                ]
+                ],
+                access: .input
             ) { args in
                 let skipped = try await session.typeText(
                     try args.string("text"), submit: try args.bool("submit", default: false))
@@ -165,7 +173,8 @@ enum MirroringTools {
                     "type": "object",
                     "properties": ["key": ["type": "string", "description": "Key spec like \"return\" or \"cmd+a\""]],
                     "required": ["key"],
-                ]
+                ],
+                access: .input
             ) { args in
                 try await session.pressKey(spec: try args.string("key"))
                 return textResult("Pressed \(try args.string("key")).")
@@ -174,7 +183,8 @@ enum MirroringTools {
             RegisteredTool(
                 name: "home",
                 description: "Go to the iPhone Home Screen (View menu / ⌘1).",
-                schema: ["type": "object", "properties": [:]]
+                schema: ["type": "object", "properties": [:]],
+                access: .input
             ) { _ in
                 try await session.home()
                 return textResult("Home Screen.")
@@ -183,7 +193,8 @@ enum MirroringTools {
             RegisteredTool(
                 name: "app_switcher",
                 description: "Open the iPhone App Switcher (View menu / ⌘2). From here you can swipe an app card up (drag upward) to force-quit it.",
-                schema: ["type": "object", "properties": [:]]
+                schema: ["type": "object", "properties": [:]],
+                access: .input
             ) { _ in
                 try await session.appSwitcher()
                 return textResult("App Switcher opened. Take a screenshot to see app cards.")
@@ -192,7 +203,8 @@ enum MirroringTools {
             RegisteredTool(
                 name: "spotlight",
                 description: "Open iPhone Spotlight search (View menu / ⌘3).",
-                schema: ["type": "object", "properties": [:]]
+                schema: ["type": "object", "properties": [:]],
+                access: .input
             ) { _ in
                 try await session.spotlight()
                 return textResult("Spotlight opened.")
@@ -205,7 +217,8 @@ enum MirroringTools {
                     "type": "object",
                     "properties": ["name": ["type": "string", "description": "App name as it appears on the phone"]],
                     "required": ["name"],
-                ]
+                ],
+                access: .input
             ) { args in
                 let name = try args.string("name")
                 try await session.launchApp(named: name)
@@ -219,7 +232,8 @@ enum MirroringTools {
                     "type": "object",
                     "properties": ["url": ["type": "string", "description": "URL to open in Safari on the iPhone, including https://"]],
                     "required": ["url"],
-                ]
+                ],
+                access: .input
             ) { args in
                 let url = try args.string("url")
                 try await session.openURL(url)
@@ -229,7 +243,8 @@ enum MirroringTools {
             RegisteredTool(
                 name: "shake",
                 description: "Trigger the iOS shake gesture (⌃⌘Z) — undo dialogs, developer menus (e.g. React Native).",
-                schema: ["type": "object", "properties": [:]]
+                schema: ["type": "object", "properties": [:]],
+                access: .input
             ) { _ in
                 try await session.shake()
                 return textResult("Shake sent.")
@@ -241,7 +256,8 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": ["fast": ["type": "boolean", "description": "Faster, less accurate recognition (default false)"]],
-                ]
+                ],
+                access: .read
             ) { args in
                 let elements = try await session.readScreen(fast: try args.bool("fast", default: false))
                 return textResult(describeElements(elements))
@@ -257,7 +273,8 @@ enum MirroringTools {
                         "exact": ["type": "boolean", "description": "Only exact (case-insensitive) matches"],
                     ],
                     "required": ["query"],
-                ]
+                ],
+                access: .read
             ) { args in
                 let matches = try await session.findText(
                     try args.string("query"), exact: try args.bool("exact", default: false))
@@ -277,7 +294,8 @@ enum MirroringTools {
                         "expect_timeout_seconds": ["type": "number", "description": "How long to wait for expect (default 10)"],
                     ],
                     "required": ["query"],
-                ]
+                ],
+                access: .input
             ) { args in
                 let expect = try args.optionalString("expect")
                 let element = try await session.tapText(
@@ -301,7 +319,8 @@ enum MirroringTools {
                         "exact": ["type": "boolean", "description": "Require an exact, full-string match instead of a case-insensitive substring match (default false)"],
                     ],
                     "required": ["text"],
-                ]
+                ],
+                access: .read
             ) { args in
                 let elapsed = try await session.waitForText(
                     try args.string("text"),
@@ -321,7 +340,8 @@ enum MirroringTools {
                         "max_swipes": ["type": "number", "description": "Default 8, max 20"],
                     ],
                     "required": ["text"],
-                ]
+                ],
+                access: .input
             ) { args in
                 let element = try await session.scrollTo(
                     try args.string("text"),
@@ -358,7 +378,8 @@ enum MirroringTools {
                         "submit": ["type": "boolean", "description": "Press Return after pasting (default false)"],
                     ],
                     "required": ["text"],
-                ]
+                ],
+                access: .input
             ) { args in
                 try await session.pasteText(
                     try args.string("text"), submit: try args.bool("submit", default: false))
@@ -375,17 +396,20 @@ enum MirroringTools {
                     ],
                 ]
             ) { args in
-                let text = try await session.copyAndReadClipboard(
-                    pressCopy: try args.bool("copy_first", default: true))
+                let copyFirst = try args.bool("copy_first", default: true)
+                let text = try await session.copyAndReadClipboard(pressCopy: copyFirst)
                 guard let text, !text.isEmpty else {
-                    return textResult("Clipboard has no text. Make sure something was selected on the phone (or pass copy_first=false to read the Mac clipboard as-is).")
+                    if copyFirst {
+                        return textResult("Nothing was copied: the clipboard did not change after Command-C. Select text on the phone first, or pass copy_first=false to read the Mac clipboard as it is.")
+                    }
+                    return textResult("The Mac clipboard has no text.")
                 }
                 return textResult("Clipboard text:\n\(text)")
             },
 
             RegisteredTool(
                 name: "mirror_restart",
-                description: "Fully restart the iPhone Mirroring app: quit, relaunch, resume. THE recovery for a zombie session — video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way.",
+                description: "Fully restart the iPhone Mirroring app: quit, relaunch. THE recovery for a zombie session: video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way. Refused while the session is paused by a person (iPhone in use).",
                 schema: ["type": "object", "properties": [:]]
             ) { _ in
                 let status = try await session.restartMirroring()
@@ -431,7 +455,8 @@ enum MirroringTools {
                         "timeout_seconds": ["type": "number", "description": "Default 15, max 120"],
                         "threshold": ["type": "number", "description": "Normalized difference 0-1 that counts as a change (default 0.02)"],
                     ],
-                ]
+                ],
+                access: .read
             ) { args in
                 let elapsed = try await session.waitForScreenChange(
                     mode: try args.optionalString("mode") ?? "changed",
@@ -448,7 +473,8 @@ enum MirroringTools {
                     "properties": [
                         "max_width": ["type": "number", "description": "Optional: cap the returned image width in pixels (coordinates stay full-resolution)"],
                     ],
-                ]
+                ],
+                access: .read
             ) { args in
                 let (shot, elements) = try await session.annotatedScreenshot(
                     maxWidth: try args.optionalInt("max_width"))
@@ -475,7 +501,8 @@ enum MirroringTools {
                         "min_score": ["type": "number", "description": "Match threshold 0.3-0.999 (default 0.8)"],
                         "multi_scale": ["type": "boolean", "description": "Also try 0.75×-1.35× template scales (default false; slower)"],
                     ],
-                ]
+                ],
+                access: .read
             ) { args in
                 let matches = try await session.findImage(
                     templateData: try loadTemplate(args),
@@ -503,7 +530,8 @@ enum MirroringTools {
                         "expect": ["type": "string", "description": "Text that must appear after the tap"],
                         "expect_timeout_seconds": ["type": "number", "description": "Default 10"],
                     ],
-                ]
+                ],
+                access: .input
             ) { args in
                 let match = try await session.tapImage(
                     templateData: try loadTemplate(args),
@@ -522,7 +550,8 @@ enum MirroringTools {
                     "properties": [
                         "wait_seconds": ["type": "number", "description": "Poll up to this long for a banner to appear (default 0 = single check, max 60)"],
                     ],
-                ]
+                ],
+                access: .read
             ) { args in
                 let waitSeconds = min(max(try args.optionalDouble("wait_seconds") ?? 0, 0), 60)
                 let deadline = Date().addingTimeInterval(waitSeconds)
@@ -541,8 +570,10 @@ enum MirroringTools {
                 schema: [
                     "type": "object",
                     "properties": ["index": ["type": "number", "description": "Banner index (default 0 = topmost)"]],
-                ]
+                ],
+                access: .input
             ) { args in
+                try await session.requireSessionNotPaused()
                 let banner = try NotificationBridge.click(index: try args.int("index", default: 0))
                 return textResult("Clicked banner: \(banner.lines.joined(separator: " — ")). Take a screenshot to see what opened.")
             },
@@ -567,8 +598,10 @@ enum MirroringTools {
                         ],
                     ],
                     "required": ["steps"],
-                ]
+                ],
+                access: .input
             ) { args in
+                try await session.requireSessionNotPaused()
                 let steps = try args.objectArray("steps")
                 guard !steps.isEmpty else { throw MirrorError("The batch has no steps.") }
                 guard steps.count <= 30 else { throw MirrorError("Too many steps (\(steps.count)); max 30 per batch.") }

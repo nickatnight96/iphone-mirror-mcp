@@ -31,6 +31,13 @@ Resuming needs the phone locked again. There is no way around it, and it means
 any long-running automation is interruptible by whoever is holding the phone —
 which is arguably the right security property.
 
+The server resumes a pause only when the overlay shows a button labeled
+Resume. In a live test the idle pause overlay was a bare AXGroup with no
+labeled button. So the server often does not resume an idle pause, and a
+person must resume it: lock the iPhone, or click Resume in the iPhone
+Mirroring window. This is the intended fail-closed behavior. The server does
+not click a button it cannot read.
+
 ## No accessibility tree from the phone
 
 Mirroring streams video, not a view hierarchy. OCR plus template matching *is*
@@ -86,7 +93,10 @@ fidelity.
 Menu-driven navigation (`home`, `app_switcher`, `spotlight`) reaches for the
 **View** menu by its English name, with ⌘1/⌘2/⌘3 as a fallback. On a
 non-English macOS the fallback carries it, but the primary path will miss.
-Pause-overlay detection knows English and French button labels.
+The pause overlay's Resume button is recognized by its English and French
+labels (resume, retry, reprendre, continuer, réessayer). On another locale an
+idle pause looks unlabeled, and the server leaves it for a person to resume
+rather than guess; this is the safe failure, not a crash.
 
 If you run a non-English macOS and something in this area misbehaves, that is
 a real bug and worth reporting — the fallbacks are not equally exercised.

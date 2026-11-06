@@ -39,4 +39,11 @@ extension MirrorError {
             remediation: "Open System Settings → Privacy & Security → Accessibility and enable the app that launched this MCP server (e.g. your terminal or Claude), then restart the server."
         )
     }
+
+    public static func sessionPaused() -> MirrorError {
+        MirrorError(
+            "The mirroring session is paused: the iPhone is in use or the pause overlay has no Resume button. This server does not resume it.",
+            remediation: "A person must resume it: lock the iPhone and leave it near the Mac, or click Resume in the iPhone Mirroring window. Call status to confirm connected; input tools stay refused until then."
+        )
+    }
 }
