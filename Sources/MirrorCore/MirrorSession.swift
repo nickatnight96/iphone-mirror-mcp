@@ -441,6 +441,8 @@ public actor MirrorSession {
 
     /// Paste render time before the user's clipboard is restored.
     static let pasteSettleUs: UInt32 = 700_000
+    /// How long a bridged copy gets to land on the Mac pasteboard.
+    static let copyWaitSeconds: TimeInterval = 2
 
     /// Pastes text into the focused phone field via the bridged pasteboard
     /// (⌘V) — the only full-fidelity path: emoji/CJK/accents survive, and
@@ -461,13 +463,17 @@ public actor MirrorSession {
 
     /// Presses ⌘C on the phone (copying any selection) and returns what the
     /// bridged pasteboard then holds. Also usable without the copy to just
-    /// read the current clipboard.
+    /// read the current clipboard. Returns nil when the pasteboard did not
+    /// change after the copy: the old Mac clipboard is not the phone's text.
     public func copyAndReadClipboard(pressCopy: Bool) async throws -> String? {
         if pressCopy {
             if let error = ensureReady(forInput: true) { throw error }
             try assertFrontmostForInput()
+            let before = MacPasteboard.changeCount()
             try MirrorInput.pressKey(keyCode: 0x08, flags: .maskCommand)  // ⌘C
-            usleep(Self.pasteSettleUs)
+            guard MacPasteboard.waitForChange(since: before, timeout: Self.copyWaitSeconds) else {
+                return nil
+            }
         }
         return MacPasteboard.string()
     }

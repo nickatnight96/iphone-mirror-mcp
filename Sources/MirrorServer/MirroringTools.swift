@@ -375,10 +375,13 @@ enum MirroringTools {
                     ],
                 ]
             ) { args in
-                let text = try await session.copyAndReadClipboard(
-                    pressCopy: try args.bool("copy_first", default: true))
+                let copyFirst = try args.bool("copy_first", default: true)
+                let text = try await session.copyAndReadClipboard(pressCopy: copyFirst)
                 guard let text, !text.isEmpty else {
-                    return textResult("Clipboard has no text. Make sure something was selected on the phone (or pass copy_first=false to read the Mac clipboard as-is).")
+                    if copyFirst {
+                        return textResult("Nothing was copied: the clipboard did not change after Command-C. Select text on the phone first, or pass copy_first=false to read the Mac clipboard as it is.")
+                    }
+                    return textResult("The Mac clipboard has no text.")
                 }
                 return textResult("Clipboard text:\n\(text)")
             },
