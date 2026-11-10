@@ -73,15 +73,22 @@ stronger signal than the Accessibility checkbox.
 ## Session is paused and will not resume
 
 The session pauses whenever the iPhone is picked up or unlocked. That is
-Apple's design and cannot be worked around.
+Apple's design and cannot be worked around. The server resumes only an idle
+pause whose window shows a button labeled **Resume**. It never clicks past
+"iPhone in Use" or an overlay with no labeled button, and once it has seen
+such a pause it refuses every input tool, plus `mirror_launch`,
+`mirror_restart`, `launch_app`, `open_url`, `notification_click`, and
+`batch`, until a person resumes the session. Read tools keep working and add
+a note that the session is paused.
 
 1. **Lock the iPhone** — press the side button. This is the fix in most cases.
 2. Keep it near the Mac with Bluetooth and Wi-Fi on.
-3. Call `mirror_launch`, or click **Resume** in the window.
-4. Still stuck? `mirror_restart` quits and relaunches the app.
+3. Click **Resume** in the iPhone Mirroring window.
+4. Call `status`; `connected` clears the refusal. Restarting the server also
+   clears it.
 
 "iPhone in Use" means the phone is unlocked. Nothing will work until it is
-locked again.
+locked again, and the server will not try.
 
 ## Taps land in the wrong place
 
@@ -101,7 +108,11 @@ remapped proportionally.
 
 ## Taps do nothing at all
 
-- Check `status`. A paused session accepts no input.
+- Check `status`. A paused session accepts no input, and input tools are
+  refused with "The mirroring session is paused" until a person resumes it.
+- Check the mode. In `--mode read` (the default) the input tools are not
+  listed at all and answer "Unknown tool"; restart the server with
+  `--mode input` or `--mode full`.
 - Something else may have taken focus. Input tools re-assert frontmost before
   posting, but a focus change mid-call can still interfere. Retry.
 - After an activation that changes focus, the window's unhide animation

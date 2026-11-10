@@ -101,17 +101,23 @@ step "Configuration"
 cat <<EOF
 Claude Code — run this:
 
-  claude mcp add --scope user iphone-mirror -- "$BINARY"
+  claude mcp add --scope user iphone-mirror -- "$BINARY" --mode input
 
 Any other MCP client — add this stdio server to its config:
 
   {
     "mcpServers": {
       "iphone-mirror": {
-        "command": "$BINARY"
+        "command": "$BINARY",
+        "args": ["--mode", "input"]
       }
     }
   }
+
+--mode picks the tool set: read (the default, only looks at the phone), input
+(adds taps and typing), or full (adds mirror_launch, mirror_restart,
+recordings, and Xcode builds). With no args the server lists only the 15 read
+tools. See docs/getting-started.md.
 
 Config file locations:
 

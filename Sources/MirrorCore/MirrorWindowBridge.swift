@@ -143,45 +143,75 @@ public final class MirrorWindowBridge: @unchecked Sendable {
         return .connected
     }
 
-    /// Titles of overlay buttons that free a paused/interrupted session,
-    /// matched case-insensitively (includes common localized variants).
-    static let dismissButtonTitles: Set<String> = [
-        "ok", "resume", "reprendre", "continuer", "réessayer", "reessayer", "retry",
-        "connect", "connecter", "se connecter",  // "iPhone in Use" overlay (observed live 2026-08-13)
+    /// What a paused session's overlay offers. Only `.resumeButton` may be
+    /// pressed by software: "iPhone in Use" means a person holds the phone,
+    /// and an overlay with no labeled button cannot be read, so both fail
+    /// closed.
+    public enum PauseOverlay: Sendable {
+        case resumeButton
+        case inUse
+        case unknown
+    }
+
+    /// Titles of the idle pause's Resume button, matched case-insensitively
+    /// (includes common localized variants). No generic "ok": an unlabeled
+    /// or generic dialog must fail closed.
+    static let resumeButtonTitles: Set<String> = [
+        "resume", "reprendre", "continuer", "retry", "réessayer", "reessayer",
     ]
 
-    /// Finds the paused-overlay dismiss button (e.g. "Resume"/"OK") and
-    /// presses it via AX. Returns true when a button was pressed.
+    /// Titles of the "iPhone in Use" overlay's Connect button (observed live
+    /// 2026-08-13). Never pressed by software.
+    static let inUseButtonTitles: Set<String> = [
+        "connect", "connecter", "se connecter",
+    ]
+
+    /// Classifies the pause overlay by the labeled button it exposes.
+    public func pauseOverlay() -> PauseOverlay {
+        guard let (window, _) = mainWindowElement() else { return .unknown }
+        if Self.labeledButton(under: window, titles: Self.resumeButtonTitles, depth: 0) != nil {
+            return .resumeButton
+        }
+        if Self.labeledButton(under: window, titles: Self.inUseButtonTitles, depth: 0) != nil {
+            return .inUse
+        }
+        return .unknown
+    }
+
+    /// Presses the labeled Resume button via AX. Returns true when a button
+    /// was pressed. Acts only on a `.resumeButton` overlay.
     public func pressResumeButton() -> Bool {
-        guard let (window, _) = mainWindowElement() else { return false }
-        guard let button = Self.dismissButton(under: window, depth: 0) else { return false }
+        guard let (window, _) = mainWindowElement(),
+              let button = Self.labeledButton(under: window, titles: Self.resumeButtonTitles, depth: 0) else {
+            return false
+        }
         return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
     }
 
-    /// Screen-center of the dismiss button, for a real HID click when the AX
-    /// press is not honored.
+    /// Screen-center of the labeled Resume button, for a real HID click when
+    /// the AX press is not honored. Nil on any other overlay.
     public func resumeButtonCenter() -> CGPoint? {
         guard let (window, _) = mainWindowElement(),
-              let button = Self.dismissButton(under: window, depth: 0),
+              let button = Self.labeledButton(under: window, titles: Self.resumeButtonTitles, depth: 0),
               let geometry = Self.axGeometry(of: button) else { return nil }
         return CGPoint(x: geometry.midX, y: geometry.midY)
     }
 
     private static let maxOverlaySearchDepth = 8
 
-    static func dismissButton(under element: AXUIElement, depth: Int) -> AXUIElement? {
+    static func labeledButton(under element: AXUIElement, titles: Set<String>, depth: Int) -> AXUIElement? {
         if depth > maxOverlaySearchDepth { return nil }
         var roleRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
         if let role = roleRef as? String, role == kAXButtonRole as String,
-           let label = buttonLabel(element), dismissButtonTitles.contains(label) {
+           let label = buttonLabel(element), titles.contains(label) {
             return element
         }
         var childrenRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
         guard let children = childrenRef as? [AXUIElement] else { return nil }
         for child in children {
-            if let found = dismissButton(under: child, depth: depth + 1) { return found }
+            if let found = labeledButton(under: child, titles: titles, depth: depth + 1) { return found }
         }
         return nil
     }

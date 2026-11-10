@@ -68,4 +68,18 @@ final class Phase2FeatureTests: XCTestCase {
         let annotated = try ImageUtil.annotate(base, boxes: [])
         XCTAssertEqual(ImageUtil.meanAbsDifference(base, annotated), 0, accuracy: 0.005)
     }
+
+    /// The detached recording must not share the server's stdio: stdout is
+    /// the MCP protocol channel, and a child that inherits it can corrupt
+    /// frames or hold the pipe open. stderr stays inherited on purpose (the
+    /// server's log channel; an undrained Pipe can block a long recording).
+    func testRecordingProcessDoesNotInheritServerStdio() {
+        let info = MirrorWindowInfo(
+            windowID: 42, bounds: CGRect(x: 605, y: 121, width: 348, height: 766), pid: 1)
+        let process = MirrorCapture.makeRecordingProcess(windowInfo: info, path: "/tmp/ipm-test.mov")
+        XCTAssertTrue((process.standardInput as? FileHandle) === FileHandle.nullDevice)
+        XCTAssertTrue((process.standardOutput as? FileHandle) === FileHandle.nullDevice)
+        XCTAssertEqual(process.executableURL?.path, "/usr/sbin/screencapture")
+        XCTAssertEqual(process.arguments, ["-v", "-R", "605,121,348,766", "-x", "/tmp/ipm-test.mov"])
+    }
 }

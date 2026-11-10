@@ -6,7 +6,9 @@
 Every tool this server exposes, generated from the server's own catalog so it
 always matches the shipped binary.
 
-- **63 tools** in `iphone-mirror-mcp 1.0.1`
+- **63 tools** in `iphone-mirror-mcp 1.0.1`, listed in `--mode full`.
+  `--mode read` (the default) lists only the tools that observe; `--mode input`
+  adds the ones that send input. See [getting-started.md](getting-started.md#modes).
 - Parameters marked **required** must be supplied; everything else is optional.
 
 ## Coordinate contract
@@ -61,7 +63,7 @@ _No parameters._
 
 ### `mirror_restart`
 
-Fully restart the iPhone Mirroring app: quit, relaunch, resume. THE recovery for a zombie session — video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way.
+Fully restart the iPhone Mirroring app: quit, relaunch. THE recovery for a zombie session: video updates but every tap/key is silently ignored. Also useful when the session is wedged in any other way. Refused while the session is paused by a person (iPhone in use).
 
 _No parameters._
 

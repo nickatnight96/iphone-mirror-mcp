@@ -48,4 +48,26 @@ public enum MacPasteboard {
     public static func string() -> String? {
         NSPasteboard.general.string(forType: .string)
     }
+
+    /// The general pasteboard's change count. Every write bumps it, so a
+    /// copy that landed is a count that moved.
+    public static func changeCount() -> Int {
+        NSPasteboard.general.changeCount
+    }
+
+    /// Polls until the change count moves away from `since` or the timeout
+    /// elapses. Returns true when it moved. The bridged copy lands
+    /// asynchronously; a fixed sleep either waits too long or reads the old
+    /// Mac clipboard as if it came from the phone.
+    public static func waitForChange(
+        since: Int, timeout: TimeInterval, pollInterval: TimeInterval = 0.05,
+        changeCount: () -> Int = { NSPasteboard.general.changeCount }
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while true {
+            if changeCount() != since { return true }
+            if Date() >= deadline { return false }
+            usleep(UInt32(pollInterval * 1_000_000))
+        }
+    }
 }

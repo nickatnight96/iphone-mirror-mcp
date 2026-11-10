@@ -12,15 +12,29 @@ trust boundary is the *client*, not this server.
 
 ## The trust model
 
-- **The model can do anything you could do on the phone.** There is no
-  sandbox, no per-tool permission prompt, no allowlist. Run it only from
-  clients you trust with that access.
+- **The model can do anything the mode allows, and in `full` that is
+  anything you could do on the phone.** `--mode` is the only allowlist:
+  `read` (the default) lists 15 tools that observe, `input` adds the 19 that
+  send taps and keys, `full` adds the rest. A hidden tool is absent from
+  `tools/list` and answers "Unknown tool"; the mode is fixed at launch and a
+  model cannot change it. Every tool carries MCP annotations (`readOnlyHint`,
+  `destructiveHint`, `idempotentHint`, `openWorldHint`); clients may use them
+  for confirmation prompts, but they are hints, not enforcement. There is no
+  sandbox and no per-tool permission prompt in the server itself. Run it only
+  from clients you trust with that access.
 - **macOS permissions belong to the launching app.** Granting Accessibility
   and Screen Recording to your terminal or desktop client grants them for
   everything that app runs, not just this server.
 - **The phone is the kill switch.** Picking up or unlocking the iPhone pauses
   the session immediately, and resuming requires it locked again. That is a
-  genuine physical control and it cannot be overridden from software.
+  genuine physical control and the server does not override it: it clicks
+  Resume only on an idle pause whose button is labeled Resume, and only when
+  an input tool runs. Read tools never click, so an idle pause is resumed
+  only by an input tool. It never clicks past "iPhone in Use" or an overlay it
+  cannot read. Once it has seen such a pause, or a labeled Resume press that
+  does not take, it refuses all input, `mirror_launch`, `mirror_restart`,
+  `notification_click` and `batch` until a person resumes the session or the
+  server restarts.
 - **Prompt injection reaches the phone.** Content the model reads off the
   screen — a message, an email, a web page — is untrusted input that could try
   to steer subsequent actions. This matters more here than in most MCP servers

@@ -103,9 +103,17 @@ guarantees across a broad input grid.
 
 ## Session state
 
-State is detected through AX children. Pause overlays expose **no** AX
-buttons, so resume falls back to clicking the two known overlay layouts —
-Resume at the window center, and "iPhone in Use → Connect" at about 65% height.
+State is detected through AX children: a connected session is an opaque video
+with none, a paused one shows overlay UI. The overlay is then classified by
+the labeled button it exposes: a Resume button (idle pause), a Connect button
+("iPhone in Use"), or no labeled button at all. Only the Resume button is
+pressed, once via AX and once as a real click at its center; the other two
+set a latch. While latched, every input path returns `sessionPaused`,
+`mirror_launch`, `mirror_restart`, `notification_click` and `batch` are
+refused, and reads proceed with a paused note. The latch clears only when a
+state read sees `connected` again, which takes a person. There are no blind
+clicks at window positions: an overlay without a labeled button is never
+clicked, so the physical kill switch stays physical.
 
 ## Reading the screen
 

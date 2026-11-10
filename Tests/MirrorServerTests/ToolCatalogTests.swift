@@ -98,6 +98,52 @@ final class ToolCatalogTests: XCTestCase {
             XCTAssertFalse(data.isEmpty, registered.tool.name)
         }
     }
+
+    /// The exact sets behind --mode. A tool in the wrong class either leaks
+    /// phone control into read mode or hides a read behind input, so the
+    /// sets are pinned by name; a new tool lands in full until it is placed.
+    func testAccessClassesMatchTheSecurityModel() {
+        let readTools: Set<String> = [
+            "status", "screenshot", "read_screen", "find_text", "wait_for_text",
+            "wait_for_screen_change", "annotated_screenshot", "find_image", "notifications",
+            "devices", "xcode_list", "sim_log", "sim_apps", "device_info", "device_apps",
+        ]
+        let inputTools: Set<String> = [
+            "tap", "double_tap", "long_press", "swipe", "drag", "type_text", "paste_text",
+            "press_key", "home", "app_switcher", "spotlight", "launch_app", "open_url", "shake",
+            "tap_text", "scroll_to", "tap_image", "batch", "notification_click",
+        ]
+        XCTAssertEqual(readTools.count, 15)
+        XCTAssertEqual(inputTools.count, 19)
+        let tools = allTools()
+        XCTAssertEqual(Set(tools.filter { $0.access == .read }.map(\.tool.name)), readTools)
+        XCTAssertEqual(Set(tools.filter { $0.access == .input }.map(\.tool.name)), inputTools)
+        XCTAssertEqual(tools.filter { $0.access == .full }.count, tools.count - 34)
+        XCTAssertEqual(tools.count, 63)
+        // An unmarked tool fails closed into full.
+        let unmarked = RegisteredTool(name: "x_y", description: "d", schema: ["type": "object"]) { _ in
+            textResult("")
+        }
+        XCTAssertEqual(unmarked.access, .full)
+    }
+
+    func testAnnotationsFollowAccessClass() {
+        let openWorld: Set<String> = ["xcode_build", "xcode_test", "run_on_iphone", "run_on_sim"]
+        for registered in allTools() {
+            let name = registered.tool.name
+            let annotations = registered.tool.annotations
+            let isRead = registered.access == .read
+            XCTAssertEqual(annotations.readOnlyHint, isRead, name)
+            XCTAssertEqual(annotations.destructiveHint, !isRead, name)
+            XCTAssertEqual(annotations.idempotentHint, isRead, name)
+            XCTAssertEqual(annotations.openWorldHint, openWorld.contains(name), name)
+            XCTAssertFalse((registered.tool.title ?? "").isEmpty, "\(name) has no title")
+        }
+        let byName = Dictionary(uniqueKeysWithValues: allTools().map { ($0.tool.name, $0.tool) })
+        XCTAssertEqual(byName["run_on_iphone"]?.title, "Run On iPhone")
+        XCTAssertEqual(byName["open_url"]?.title, "Open URL")
+        XCTAssertEqual(byName["tap_text"]?.title, "Tap Text")
+    }
 }
 
 final class ToolArgsTests: XCTestCase {

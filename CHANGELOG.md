@@ -5,6 +5,51 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+The default changed: with no arguments the server now serves in `read` mode
+and lists 15 tools. Existing client configs that only name the binary lose
+the input and management tools until `--mode input` or `--mode full` is added
+to their args. This is a breaking change and the next release should be
+2.0.0.
+
+### Added
+- `--mode read|input|full` on `serve`, default `read`. `read` lists the 15
+  tools that observe the phone, devices, and simulators; `input` adds the 19
+  that send taps, keys, and navigation; `full` lists all 63. A hidden tool is
+  absent from `tools/list` and answers "Unknown tool" when called by name.
+  The mode is fixed at launch; a model cannot change it. The mcpb bundle
+  exposes it as the `mode` user setting.
+- Every tool carries MCP annotations: `readOnlyHint` and `idempotentHint` for
+  read tools, `destructiveHint` for everything else (a tap can delete
+  anything on the phone), `openWorldHint` only for `xcode_build`,
+  `xcode_test`, `run_on_iphone` and `run_on_sim`, plus a title.
+
+### Changed
+- The server resumes only an idle pause whose overlay shows a button labeled
+  Resume (one AX press, then one real click at that button), and only when an
+  input tool runs. Read tools never click, so an idle pause is resumed only by
+  an input tool. The server never clicks past "iPhone in Use" or an overlay
+  with no labeled button, and no longer blind-clicks the window center or the
+  65 percent point. After any other pause, or a labeled Resume press that
+  does not take, it refuses input, `mirror_launch`, `mirror_restart`,
+  `launch_app`, `open_url`, `notification_click` and `batch` until a person
+  resumes the session (the server sees `connected` again) or the server
+  restarts. Read tools still work and add a note that the session is paused.
+- `launch_app` and `open_url` run every keystroke through the same readiness
+  check as the standalone input tools.
+
+### Fixed
+- `read_clipboard` waits for the pasteboard change count to move after
+  Command-C and reports "Nothing was copied" instead of returning the old Mac
+  clipboard as if it came from the phone.
+- `record_start` no longer hands `screencapture` the MCP stdin and stdout.
+- `run_on_iphone` picks the first paired iPhone (not the first devicectl row,
+  which could be an iPad, a Watch, or an unpaired phone) and the
+  `<scheme>.app` bundle (not the first `.app` in derived data, which could be
+  a UI-test runner). Several bundles with no name match is now an error that
+  names the candidates.
+
 ## [1.0.1] - 2026-08-14
 
 ### Changed

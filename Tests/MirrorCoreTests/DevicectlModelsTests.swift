@@ -61,4 +61,61 @@ final class DevicectlModelsTests: XCTestCase {
             XCTAssertTrue(error is MirrorError)
         }
     }
+
+    /// devicectl lists every device the Mac has ever seen, in no useful
+    /// order. The default for run_on_iphone must be a paired iPhone, not the
+    /// first row.
+    let mixedFleetJSON = """
+    {"result":{"devices":[
+      {"identifier":"ipad","connectionProperties":{"pairingState":"paired"},
+       "deviceProperties":{"name":"Office iPad"},
+       "hardwareProperties":{"udid":"IPAD-UDID","deviceType":"iPad14,3","platform":"iOS"}},
+      {"identifier":"watch","connectionProperties":{"pairingState":"paired"},
+       "deviceProperties":{"name":"Watch"},
+       "hardwareProperties":{"udid":"WATCH-UDID","deviceType":"Watch6,1","platform":"watchOS"}},
+      {"identifier":"old","connectionProperties":{"pairingState":"unpaired"},
+       "deviceProperties":{"name":"Old iPhone"},
+       "hardwareProperties":{"udid":"OLD-UDID","deviceType":"iPhone15,2","platform":"iOS"}},
+      {"identifier":"mine","connectionProperties":{"pairingState":"paired"},
+       "deviceProperties":{"name":"My iPhone"},
+       "hardwareProperties":{"udid":"MINE-UDID","deviceType":"iPhone16,2","platform":"iOS"}}
+    ]}}
+    """
+
+    func testDefaultDeviceIsFirstPairedIPhone() throws {
+        let devices = try DevicectlDeviceList.parse(Data(mixedFleetJSON.utf8))
+        let picked = try XcodeTools.resolveDevice(nil, in: devices)
+        XCTAssertEqual(picked.identifier, "MINE-UDID")
+        XCTAssertEqual(picked.name, "My iPhone")
+        // An explicit query still reaches any device, iPad included.
+        XCTAssertEqual(try XcodeTools.resolveDevice("office ipad", in: devices).identifier, "IPAD-UDID")
+    }
+
+    /// A missing or unknown pairing state is not "paired": only a phone
+    /// devicectl reports as paired is a default target.
+    func testIPhoneWithNoPairingStateIsSkipped() throws {
+        let json = """
+        {"result":{"devices":[
+          {"identifier":"unknown","connectionProperties":{},
+           "deviceProperties":{"name":"Unknown iPhone"},
+           "hardwareProperties":{"udid":"UNKNOWN-UDID","deviceType":"iPhone","platform":"iOS"}},
+          {"identifier":"mine","connectionProperties":{"pairingState":"paired"},
+           "deviceProperties":{"name":"My iPhone"},
+           "hardwareProperties":{"udid":"MINE-UDID","deviceType":"iPhone","platform":"iOS"}}
+        ]}}
+        """
+        let devices = try DevicectlDeviceList.parse(Data(json.utf8))
+        XCTAssertEqual(try XcodeTools.resolveDevice(nil, in: devices).identifier, "MINE-UDID")
+    }
+
+    func testNoPairedIPhoneIsAnError() throws {
+        let devices = try DevicectlDeviceList.parse(Data(mixedFleetJSON.utf8)).filter {
+            $0.hardwareProperties?.udid != "MINE-UDID"
+        }
+        XCTAssertThrowsError(try XcodeTools.resolveDevice(nil, in: devices)) { error in
+            let message = (error as? MirrorError)?.message ?? ""
+            XCTAssertTrue(message.contains("Office iPad"), "error should list what was found: \(message)")
+            XCTAssertTrue(message.contains("Old iPhone"), message)
+        }
+    }
 }
