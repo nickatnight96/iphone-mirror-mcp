@@ -403,6 +403,10 @@
     "2026-11-08": {
       "count": 28,
       "uniques": 20
+    },
+    "2026-11-09": {
+      "count": 9,
+      "uniques": 7
     }
   },
   "forks": {
@@ -5282,6 +5286,33 @@
         "referrer": "Google",
         "uniques": 1
       }
+    ],
+    "2026-11-11": [
+      {
+        "count": 2,
+        "referrer": "aocr.org",
+        "uniques": 2
+      },
+      {
+        "count": 2,
+        "referrer": "github.com",
+        "uniques": 1
+      },
+      {
+        "count": 2,
+        "referrer": "perplexity.ai",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "Bing",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "Google",
+        "uniques": 1
+      }
     ]
   },
   "repo": "nickatnight96/iphone-mirror-mcp",
@@ -5299,12 +5330,12 @@
   },
   "totals": {
     "clones": {
-      "count": 1531,
-      "uniques_day_sum": 901
+      "count": 1540,
+      "uniques_day_sum": 908
     },
     "views": {
-      "count": 407,
-      "uniques_day_sum": 203
+      "count": 409,
+      "uniques_day_sum": 205
     }
   },
   "views": {
@@ -5711,6 +5742,10 @@
     "2026-11-08": {
       "count": 3,
       "uniques": 3
+    },
+    "2026-11-09": {
+      "count": 2,
+      "uniques": 2
     }
   },
   "watchers": {
