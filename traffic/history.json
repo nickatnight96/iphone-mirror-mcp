@@ -415,6 +415,10 @@
     "2026-11-11": {
       "count": 36,
       "uniques": 19
+    },
+    "2026-11-12": {
+      "count": 10,
+      "uniques": 7
     }
   },
   "forks": {
@@ -4508,6 +4512,68 @@
         "title": "/commits/main/LICENSE",
         "uniques": 1
       }
+    ],
+    "2026-11-14": [
+      {
+        "count": 43,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 34
+      },
+      {
+        "count": 4,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/architecture.md",
+        "title": "/blob/main/docs/architecture.md",
+        "uniques": 4
+      },
+      {
+        "count": 3,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main",
+        "title": "/tree/main",
+        "uniques": 3
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/tools.md",
+        "title": "/blob/main/docs/tools.md",
+        "uniques": 2
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/HEAD/docs/getting-started.md",
+        "title": "/blob/HEAD/docs/getting-started.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/HEAD/docs/tools.md",
+        "title": "/blob/HEAD/docs/tools.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/LICENSE",
+        "title": "/blob/main/LICENSE",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/Sources/MirrorCore/MirrorInput.swift",
+        "title": "/blob/main/Sources/MirrorCore/MirrorInput.swift",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/recipes.md",
+        "title": "/blob/main/docs/recipes.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/commits/main/LICENSE",
+        "title": "/commits/main/LICENSE",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -5467,6 +5533,33 @@
         "referrer": "Bing",
         "uniques": 1
       }
+    ],
+    "2026-11-14": [
+      {
+        "count": 2,
+        "referrer": "github.com",
+        "uniques": 1
+      },
+      {
+        "count": 2,
+        "referrer": "perplexity.ai",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "Bing",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "aocr.org",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "referrer": "glama.ai",
+        "uniques": 1
+      }
     ]
   },
   "repo": "nickatnight96/iphone-mirror-mcp",
@@ -5484,12 +5577,12 @@
   },
   "totals": {
     "clones": {
-      "count": 1614,
-      "uniques_day_sum": 951
+      "count": 1624,
+      "uniques_day_sum": 958
     },
     "views": {
-      "count": 420,
-      "uniques_day_sum": 213
+      "count": 421,
+      "uniques_day_sum": 214
     }
   },
   "views": {
@@ -5908,6 +6001,10 @@
     "2026-11-11": {
       "count": 4,
       "uniques": 3
+    },
+    "2026-11-12": {
+      "count": 1,
+      "uniques": 1
     }
   },
   "watchers": {
