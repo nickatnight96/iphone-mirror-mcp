@@ -439,6 +439,10 @@
     "2026-11-17": {
       "count": 25,
       "uniques": 18
+    },
+    "2026-11-18": {
+      "count": 14,
+      "uniques": 11
     }
   },
   "forks": {
@@ -4842,6 +4846,68 @@
         "title": "k/32e6986477cb4b0ea872e2f3afd79e7e~tplv-a9rns2rl98-image.image",
         "uniques": 1
       }
+    ],
+    "2026-11-20": [
+      {
+        "count": 34,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 26
+      },
+      {
+        "count": 3,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/architecture.md",
+        "title": "/blob/main/docs/architecture.md",
+        "uniques": 3
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/limitations.md",
+        "title": "/blob/main/docs/limitations.md",
+        "uniques": 1
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main",
+        "title": "/tree/main",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/Sources/MirrorCore/MirrorInput.swift",
+        "title": "/blob/main/Sources/MirrorCore/MirrorInput.swift",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/getting-started.md",
+        "title": "/blob/main/docs/getting-started.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/tools.md",
+        "title": "/blob/main/docs/tools.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/releases/tag/v1.0.1",
+        "title": "/releases/tag/v1.0.1",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main/mcpb",
+        "title": "/tree/main/mcpb",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/tos-cn-i-ik7evvg4ik/rc/supertask/32e6986477cb4b0ea872e2f3afd79e7e~tplv-a9rns2rl98-image.image",
+        "title": "k/32e6986477cb4b0ea872e2f3afd79e7e~tplv-a9rns2rl98-image.image",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -5921,12 +5987,12 @@
   },
   "totals": {
     "clones": {
-      "count": 1719,
-      "uniques_day_sum": 1025
+      "count": 1733,
+      "uniques_day_sum": 1036
     },
     "views": {
-      "count": 440,
-      "uniques_day_sum": 229
+      "count": 443,
+      "uniques_day_sum": 230
     }
   },
   "views": {
@@ -6369,6 +6435,10 @@
     "2026-11-17": {
       "count": 3,
       "uniques": 3
+    },
+    "2026-11-18": {
+      "count": 3,
+      "uniques": 1
     }
   },
   "watchers": {
