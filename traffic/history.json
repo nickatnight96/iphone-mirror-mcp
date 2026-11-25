@@ -463,6 +463,10 @@
     "2026-11-23": {
       "count": 10,
       "uniques": 8
+    },
+    "2026-11-24": {
+      "count": 6,
+      "uniques": 4
     }
   },
   "forks": {
@@ -5152,6 +5156,50 @@
         "title": "k/32e6986477cb4b0ea872e2f3afd79e7e~tplv-a9rns2rl98-image.image",
         "uniques": 1
       }
+    ],
+    "2026-11-25": [
+      {
+        "count": 23,
+        "path": "/nickatnight96/iphone-mirror-mcp",
+        "title": "Overview",
+        "uniques": 17
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/limitations.md",
+        "title": "/blob/main/docs/limitations.md",
+        "uniques": 1
+      },
+      {
+        "count": 2,
+        "path": "/nickatnight96/iphone-mirror-mcp/tree/main",
+        "title": "/tree/main",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/architecture.md",
+        "title": "/blob/main/docs/architecture.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/blob/main/docs/getting-started.md",
+        "title": "/blob/main/docs/getting-started.md",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/nickatnight96/iphone-mirror-mcp/releases/tag/v1.0.1",
+        "title": "/releases/tag/v1.0.1",
+        "uniques": 1
+      },
+      {
+        "count": 1,
+        "path": "/tos-cn-i-ik7evvg4ik/rc/supertask/32e6986477cb4b0ea872e2f3afd79e7e~tplv-a9rns2rl98-image.image",
+        "title": "k/32e6986477cb4b0ea872e2f3afd79e7e~tplv-a9rns2rl98-image.image",
+        "uniques": 1
+      }
     ]
   },
   "referrers": {
@@ -6263,8 +6311,8 @@
   },
   "totals": {
     "clones": {
-      "count": 1833,
-      "uniques_day_sum": 1097
+      "count": 1839,
+      "uniques_day_sum": 1101
     },
     "views": {
       "count": 447,
@@ -6733,6 +6781,10 @@
       "uniques": 1
     },
     "2026-11-23": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-11-24": {
       "count": 0,
       "uniques": 0
     }
